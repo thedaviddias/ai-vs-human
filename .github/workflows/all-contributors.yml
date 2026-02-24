@@ -1,0 +1,64 @@
+name: All Contributors
+
+on:
+  pull_request:
+    types: [closed]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  contributor-event:
+    # Run if:
+    # 1. A PR is merged (Automatic)
+    # 2. A comment starts with the bot command (Manual)
+    if: |
+      (github.event.pull_request.merged == true) ||
+      (startsWith(github.event.comment.body, '@all-contributors please add'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Handle Contribution
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            USERNAME="${{ github.event.pull_request.user.login }}"
+            CONTRIBUTIONS="code"
+            echo "Processing automatic 'code' contribution for $USERNAME"
+          else
+            # Extract from comment using a more robust regex
+            # Comment: @all-contributors please add @username for <types>
+            USERNAME=$(echo "${{ github.event.comment.body }}" | sed -n 's/.*add @\([^ ]*\).*/\1/p')
+            CONTRIBUTIONS=$(echo "${{ github.event.comment.body }}" | sed -n 's/.*for \(.*\)/\1/p')
+            
+            if [ -z "$USERNAME" ]; then
+              echo "Could not parse username from comment"
+              exit 0
+            fi
+            echo "Processing manual '$CONTRIBUTIONS' contribution for $USERNAME"
+          fi
+
+          # Add the contributor (cli handles duplicates gracefully via its internal logic)
+          # We use npx to ensure we use the version defined in package.json
+          npx all-contributors-cli add "$USERNAME" "$CONTRIBUTIONS" || true
+          npx all-contributors-cli generate
+
+      - name: Commit and Push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: update contributors [skip ci]"
+          file_pattern: 'README.md .all-contributorsrc'

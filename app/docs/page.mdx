@@ -1,0 +1,96 @@
+import { createMetadata } from "@/lib/seo";
+
+export const metadata = createMetadata({
+  title: "About",
+  description:
+    "How AI vs Human classifies commits, measures lines of code, and determines whether code was written by a human or an AI tool.",
+  path: "/docs",
+  keywords: [
+    "AI commit classification",
+    "how AI vs Human works",
+    "GitHub commit attribution",
+    "AI code detection methodology",
+  ],
+});
+
+# About
+
+How we classify commits and measure the impact of AI coding tools on open source.
+
+---
+
+## How Commits Are Classified
+
+Every commit is run through a priority-based cascade. The first matching rule wins, and no further checks are performed. This ordering ensures the most authoritative signals take precedence.
+
+1. **GitHub API type field** — If GitHub marks the commit author as a `Bot` account, we classify it immediately. This catches Copilot Agent, Devin, Sweep, Gemini Code Assist, and others.
+2. **Author email patterns** — Emails containing `dependabot`, `renovate`, or ending in `[bot]@users.noreply.github.com` are classified as bots. AI agent email domains (e.g. `cursoragent@cursor.com`) are also matched here.
+3. **Author login and name** — The commit author's GitHub username and git author name are checked against a database of 40+ known bot and AI tool patterns.
+4. **Committer-based detection** — Some bots commit through GitHub's web UI. When the committer is a bot account and the commit message first line matches a known bot pattern, it's classified accordingly.
+5. **Co-Authored-By trailers** — AI tools like Claude Code, Cursor, and Copilot add `Co-Authored-By` trailers to commit messages. We parse these to identify AI-assisted commits and, when possible, the specific tool used.
+6. **Commit message markers** — Messages containing phrases like "Generated with Claude Code", "Generated with Cursor", or the `aider:` prefix are classified as AI-assisted.
+7. **Author name suffixes** — Some tools like Aider append `(aider)` to the git author name.
+
+If none of these rules match, the commit is classified as **human**.
+
+> **PR reclassification:** After initial classification, we perform a second pass on squash-merge and merge commits. If a commit references a pull request, we check whether the PR was opened by a bot account, or if the PR body, branch name, or labels contain AI tool markers. This catches cases where an AI tool creates a PR but the merge commit shows the human who merged it as the author.
+
+---
+
+## What Counts as "AI"
+
+We distinguish between **AI coding tools** and **automation bots**. Only AI tools are included in the AI percentage metrics.
+
+Based on these percentages, we assign each developer a [Rank](/docs/ranks) – from "Organic Architect" to "Digital Overseer". You can find the full breakdown of ranks on our [Developer Ranks](/docs/ranks) page.
+
+To ensure your tools are correctly detected, see our [AI Attribution guide](/docs/attribution).
+
+### AI Tools (included in AI %)
+
+- **GitHub Copilot** — Including Copilot Agent and SWE Agent
+- **Claude Code** — Anthropic's coding assistant
+- **Cursor** — Cursor editor and Cursor Agent
+- **AI-assisted** — Devin, OpenAI Codex, Aider, Windsurf, Gemini Code Assist, Amazon Q Developer, and other AI coding tools
+
+### Automation Bots (excluded from AI %)
+
+- **Dependabot** — Dependency version updates
+- **Renovate** — Dependency version updates
+- **GitHub Actions** — CI/CD automation
+- **Other bots** — Vercel, Netlify, Codecov, semantic-release, imgbot, and similar automation
+
+Automation bots like Dependabot perform routine maintenance — they don't represent the kind of AI-assisted coding that this project aims to measure. Including them would inflate the AI percentage and obscure the real signal.
+
+---
+
+## How Lines of Code Are Measured
+
+After fetching commits from the GitHub REST API, we enrich them with line-of-code data using the GitHub GraphQL API.
+
+- **Additions only** — We use the `additions` field from GitHub's GraphQL API. The AI vs Human percentage for code volume is calculated as: `aiAdditions / (humanAdditions + aiAdditions)`. Deletions are tracked but not used in percentage calculations.
+- **Best-effort enrichment** — If the GraphQL query fails (due to rate limits, missing tokens, or API errors), the pipeline continues without code-volume data. The UI gracefully falls back to commit-count mode. You may see a warning when code-volume data is incomplete.
+- **Bots excluded** — Just as with commit counts, automation bots (Dependabot, Renovate, GitHub Actions, etc.) are excluded from code-volume metrics. Only human and AI-tool additions are counted.
+
+---
+
+## Data Scope & Limitations
+
+There are important differences between our data and what GitHub shows on a user's contribution graph.
+
+| Factor | AI vs Human | GitHub |
+| --- | --- | --- |
+| What's counted | Commits to default branch only | All contributions (commits, PRs, issues, reviews) |
+| Repositories | Top 20 non-fork repos by stars | All repositories the user has contributed to |
+| Time range | Last 2 years | Last 1 year (contribution graph) |
+| Timezone | UTC (all dates bucketed at UTC midnight) | User's profile timezone |
+| Timestamp used | `authoredAt` (when the code was written) | `committedAt` (when the commit was recorded) |
+
+> Because of these differences, the activity you see on AI vs Human will not match GitHub's contribution graph exactly. Our focus is on analyzing commit authorship — who (or what) wrote the code — rather than replicating GitHub's contribution tracking.
+
+---
+
+## Open Source & Contributions
+
+The classification logic is open source. If you find a misclassification or know of an AI tool we're not detecting, contributions are welcome.
+
+[View on GitHub](https://github.com/thedaviddias/bot-vs-human)

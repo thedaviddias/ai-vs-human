@@ -1,0 +1,19 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.next": true,
+    "**/.pnpm-store": true,
+    "**/.pnpm-workspace": true,
+    "**/.pnpm-workspace.yaml": true,
+    "**/.convex": true,
+    // "**/.agents": true,
+    // "**/.claude": true,
+    // "**/.vscode": true,
+    "**/.idea": true,
+    "**/node_modules": true,
+    "**/build": true,
+    "**/dist": true,
+    "**/out": true,
+    "**/tmp": true
+  }
+}

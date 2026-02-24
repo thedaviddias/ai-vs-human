@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* ─── sugar-high syntax highlighting ────────────────────────────────── */
+/* These CSS custom properties control token colors for code blocks.    */
+/* sugar-high assigns classes like .sh__token--identifier etc., but     */
+/* the simplest theming is via these variables on the wrapper element.  */
+
+.sugar-high {
+  --sh-class: #f4a261;
+  --sh-identifier: #c9d1d9;
+  --sh-sign: #8b949e;
+  --sh-string: #a5d6ff;
+  --sh-keyword: #ff7b72;
+  --sh-comment: #6e7681;
+  --sh-jsxliterals: #7ee787;
+  --sh-property: #d2a8ff;
+  --sh-entity: #ffa657;
+}

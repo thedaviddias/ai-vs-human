@@ -1,0 +1,26 @@
+{
+  "projectName": "ai-vs-human",
+  "projectOwner": "thedaviddias",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "thedaviddias",
+      "name": "David Dias",
+      "avatar_url": "https://avatars.githubusercontent.com/u/237229?v=4",
+      "profile": "https://thedaviddias.com",
+      "contributions": [
+        "code",
+        "design",
+        "ideas"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "skipPrMe": true
+}
