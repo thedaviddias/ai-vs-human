@@ -7,6 +7,7 @@ import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { HumanAiBadges } from "@/components/badges/HumanAiBadges";
+import { UserCard } from "@/components/cards/UserCard";
 import { ContributionHeatmap } from "@/components/charts/ContributionHeatmap";
 import { StatsSummary } from "@/components/charts/StatsSummary";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -271,6 +272,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     if (!convexRepos) return 0;
     return convexRepos.filter((r) => r.repo?.syncStatus === "synced").length;
   }, [convexRepos]);
+
+  const relatedUsers = useQuery(api.queries.users.getRelatedRecentUsers, {
+    owner,
+    limit: 3,
+  });
 
   const isAnySyncing = useMemo(() => {
     if (!convexRepos) return false;
@@ -671,6 +677,40 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                     })}
                   </div>
                 </div>
+              ))}
+            </div>
+          </ErrorBoundary>
+        </div>
+      )}
+
+      {/* Related Recent Generations */}
+      {relatedUsers && relatedUsers.length > 0 && (
+        <div className="mt-24 pt-12 border-t border-neutral-800/50">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-bold tracking-tight text-white">Recent Generations</h2>
+              <div className="h-px w-24 bg-neutral-800 hidden sm:block" />
+              <p className="text-xs text-neutral-500 font-medium">
+                Other users analyzed around the same time
+              </p>
+            </div>
+          </div>
+
+          <ErrorBoundary level="section">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {relatedUsers.map((user) => (
+                <UserCard
+                  key={user.owner}
+                  owner={user.owner}
+                  avatarUrl={user.profile?.avatarUrl ?? user.avatarUrl}
+                  displayName={user.profile?.name ?? undefined}
+                  followers={user.profile?.followers}
+                  humanPercentage={user.humanPercentage}
+                  botPercentage={user.botPercentage}
+                  totalCommits={user.totalCommits}
+                  repoCount={user.repoCount}
+                  lastIndexedAt={user.lastIndexedAt}
+                />
               ))}
             </div>
           </ErrorBoundary>

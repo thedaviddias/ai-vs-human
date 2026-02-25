@@ -243,3 +243,53 @@ export const getUserByOwner = query({
     };
   },
 });
+
+export const getRelatedRecentUsers = query({
+  args: { owner: v.string(), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const allUsers = await getIndexedUsersHelper(ctx);
+    const limit = args.limit ?? 6;
+
+    if (allUsers.length <= 1) return [];
+
+    // Find the target user's position
+    const targetIndex = allUsers.findIndex((u) => u.owner === args.owner);
+
+    let start = 0;
+    if (targetIndex === -1) {
+      // If target not found (not synced yet), just return latest
+      start = 0;
+    } else {
+      // Try to center the target user
+      start = Math.max(0, targetIndex - Math.floor(limit / 2));
+      if (start + limit > allUsers.length) {
+        start = Math.max(0, allUsers.length - limit);
+      }
+    }
+
+    const selectedUsers = allUsers.slice(start, start + limit + 1);
+    // Filter out the current user and limit to the requested amount
+    const filtered = selectedUsers.filter((u) => u.owner !== args.owner).slice(0, limit);
+
+    // Enrich with profiles
+    const result = [];
+    for (const user of filtered) {
+      const profile = await ctx.db
+        .query("profiles")
+        .withIndex("by_owner", (q) => q.eq("owner", user.owner))
+        .unique();
+      result.push({
+        ...user,
+        profile: profile
+          ? {
+              name: profile.name,
+              followers: profile.followers,
+              avatarUrl: profile.avatarUrl,
+            }
+          : undefined,
+      });
+    }
+
+    return result;
+  },
+});
