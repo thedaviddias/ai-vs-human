@@ -710,6 +710,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   totalCommits={user.totalCommits}
                   repoCount={user.repoCount}
                   lastIndexedAt={user.lastIndexedAt}
+                  isSyncing={user.isSyncing}
                 />
               ))}
             </div>

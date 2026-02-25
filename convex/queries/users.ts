@@ -9,6 +9,7 @@ interface OwnerAggregate {
   botCommits: number;
   totalCommits: number;
   lastIndexedAt: number;
+  isSyncing: boolean;
 }
 
 function formatPercentage(value: number): string {
@@ -21,12 +22,33 @@ function formatPercentage(value: number): string {
 }
 
 async function getIndexedUsersHelper(ctx: QueryCtx) {
-  const syncedRepos = await ctx.db
-    .query("repos")
-    .withIndex("by_syncStatus", (q) => q.eq("syncStatus", "synced"))
-    .collect();
+  // Get ALL repos for these owners to check sync status accurately
+  const allRepos = await ctx.db.query("repos").collect();
 
   const owners = new Map<string, OwnerAggregate>();
+
+  // First pass: identify all owners and their sync status
+  for (const repo of allRepos) {
+    const existing = owners.get(repo.owner);
+    const isRepoSyncing = repo.syncStatus === "pending" || repo.syncStatus === "syncing";
+
+    if (existing) {
+      existing.isSyncing = existing.isSyncing || isRepoSyncing;
+    } else {
+      owners.set(repo.owner, {
+        owner: repo.owner,
+        repoCount: 0,
+        humanCommits: 0,
+        botCommits: 0,
+        totalCommits: 0,
+        lastIndexedAt: repo.requestedAt,
+        isSyncing: isRepoSyncing,
+      });
+    }
+  }
+
+  // Second pass: aggregate stats only for synced repos
+  const syncedRepos = allRepos.filter((r) => r.syncStatus === "synced");
 
   for (const repo of syncedRepos) {
     const weeklyStats = await ctx.db
@@ -52,27 +74,17 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
 
     const repoTotalCommits = repoHumanCommits + repoBotCommits;
     const repoLastIndexedAt = repo.lastSyncedAt ?? repo.requestedAt;
-    const existing = owners.get(repo.owner);
+    const existing = owners.get(repo.owner)!;
 
-    if (existing) {
-      existing.repoCount += 1;
-      existing.humanCommits += repoHumanCommits;
-      existing.botCommits += repoBotCommits;
-      existing.totalCommits += repoTotalCommits;
-      existing.lastIndexedAt = Math.max(existing.lastIndexedAt, repoLastIndexedAt);
-    } else {
-      owners.set(repo.owner, {
-        owner: repo.owner,
-        repoCount: 1,
-        humanCommits: repoHumanCommits,
-        botCommits: repoBotCommits,
-        totalCommits: repoTotalCommits,
-        lastIndexedAt: repoLastIndexedAt,
-      });
-    }
+    existing.repoCount += 1;
+    existing.humanCommits += repoHumanCommits;
+    existing.botCommits += repoBotCommits;
+    existing.totalCommits += repoTotalCommits;
+    existing.lastIndexedAt = Math.max(existing.lastIndexedAt, repoLastIndexedAt);
   }
 
   return Array.from(owners.values())
+    .filter((owner) => owner.repoCount > 0) // Only show users who have at least one synced repo
     .map((owner) => ({
       owner: owner.owner,
       avatarUrl: `https://github.com/${owner.owner}.png?size=96`,
@@ -81,6 +93,7 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
       humanCommits: owner.humanCommits,
       botCommits: owner.botCommits,
       lastIndexedAt: owner.lastIndexedAt,
+      isSyncing: owner.isSyncing,
       humanPercentage:
         owner.totalCommits > 0
           ? formatPercentage((owner.humanCommits / owner.totalCommits) * 100)

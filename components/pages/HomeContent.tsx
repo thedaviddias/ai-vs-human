@@ -35,6 +35,7 @@ interface IndexedUserData {
   totalCommits: number;
   repoCount: number;
   lastIndexedAt: number;
+  isSyncing: boolean;
   profile?: {
     name?: string | null;
     followers?: number;
@@ -208,6 +209,7 @@ export function HomeContent({
                     totalCommits={user.totalCommits}
                     repoCount={user.repoCount}
                     lastIndexedAt={user.lastIndexedAt}
+                    isSyncing={user.isSyncing}
                   />
                 );
               })}

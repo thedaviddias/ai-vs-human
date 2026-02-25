@@ -25,6 +25,7 @@ export default defineSchema({
     syncStage: v.optional(v.string()), // "fetching_commits" | "enriching_loc" | "classifying_prs" | "computing_stats"
     syncCommitsFetched: v.optional(v.number()), // running count, updated per page of 100 commits
     requestedAt: v.number(),
+    pushedAt: v.optional(v.number()), // GitHub pushed_at timestamp — used to order sync queue (latest first)
   })
     .index("by_fullName", ["fullName"])
     .index("by_owner", ["owner"])

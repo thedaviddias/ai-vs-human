@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -16,6 +17,7 @@ interface UserCardProps {
   totalCommits: number;
   repoCount: number;
   lastIndexedAt?: number;
+  isSyncing?: boolean;
 }
 
 function formatCompactNumber(value: number): string {
@@ -52,6 +54,7 @@ export function UserCard({
   totalCommits,
   repoCount,
   lastIndexedAt,
+  isSyncing = false,
 }: UserCardProps) {
   const [showFallbackAvatar, setShowFallbackAvatar] = useState(false);
   const [localProfile, setLocalProfile] = useState<{
@@ -113,7 +116,11 @@ export function UserCard({
                   onError={() => setShowFallbackAvatar(true)}
                 />
               )}
-              <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-neutral-900 bg-green-500" />
+              <div
+                className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-neutral-900 ${
+                  isSyncing ? "bg-purple-500 animate-pulse" : "bg-green-500"
+                }`}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <div className="truncate text-lg font-bold tracking-tight text-white group-hover:text-green-400">
@@ -148,6 +155,7 @@ export function UserCard({
             </span>
             <span className="text-sm font-bold text-neutral-200">
               {formatCompactNumber(totalCommits)}
+              {isSyncing && "+"}
             </span>
           </div>
           <div className="flex flex-col">
@@ -156,17 +164,27 @@ export function UserCard({
             </span>
             <span className="text-sm font-bold text-neutral-200">
               {formatCompactNumber(repoCount)}
+              {isSyncing && "+"}
             </span>
           </div>
         </div>
       </div>
 
       <div className="mt-8 border-t border-neutral-800/50 pt-4">
-        <HumanAiBadges
-          humanPercentage={humanPercentage}
-          aiPercentage={botPercentage}
-          aiLabel="AI"
-        />
+        {isSyncing ? (
+          <div className="flex items-center gap-2 py-1">
+            <Loader2 className="h-3 w-3 animate-spin text-purple-400" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400/80">
+              Analyzing Contributions...
+            </span>
+          </div>
+        ) : (
+          <HumanAiBadges
+            humanPercentage={humanPercentage}
+            aiPercentage={botPercentage}
+            aiLabel="AI"
+          />
+        )}
       </div>
     </Link>
   );
