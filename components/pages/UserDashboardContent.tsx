@@ -19,6 +19,7 @@ import { logger } from "@/lib/logger";
 import { postJson } from "@/lib/postJson";
 import { getSyncBadgeLabel, getSyncStageLabel } from "@/lib/syncProgress";
 import { trackEvent } from "@/lib/tracking";
+import { createUserAutoAnalyzePlan } from "@/lib/userAutoAnalyzePlan";
 import { formatPercentage } from "@/lib/utils";
 
 interface GitHubRepo {
@@ -113,25 +114,10 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   const [isFirstIngestion, setIsFirstIngestion] = useState(false);
 
   useEffect(() => {
-    if (githubRepos.length === 0 || hasTriggered) return;
-    setHasTriggered(true);
-    setIsFirstIngestion(true);
-
-    void postJson("/api/analyze/user", {
-      repos: githubRepos.map((r) => ({
-        owner: owner,
-        name: r.name,
-      })),
-    })
-      .then(() => {
-        // Keep "initializing" for a moment to let Convex catch up
-        setTimeout(() => setIsFirstIngestion(false), 3000);
-      })
-      .catch((error) => {
-        logger.error("Failed to queue user analysis", error, { owner: owner });
-        setIsFirstIngestion(false);
-      });
-  }, [githubRepos, owner, hasTriggered]);
+    if (!owner) return;
+    setHasTriggered(false);
+    setIsFirstIngestion(false);
+  }, [owner]);
 
   const [chartMode, setChartMode] = useQueryState(
     "view",
@@ -174,6 +160,51 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     api.queries.repos.getReposByFullNames,
     repoFullNames.length > 0 ? { fullNames: repoFullNames } : "skip"
   );
+
+  const autoAnalyzePlan = useMemo(() => {
+    if (githubRepos.length === 0 || !convexRepos) return null;
+
+    return createUserAutoAnalyzePlan({
+      owner,
+      githubRepos: githubRepos.map((repo) => ({
+        name: repo.name,
+        fullName: repo.full_name,
+      })),
+      convexRepos,
+    });
+  }, [owner, githubRepos, convexRepos]);
+
+  useEffect(() => {
+    if (!autoAnalyzePlan || hasTriggered) return;
+    setHasTriggered(true);
+
+    if (!autoAnalyzePlan.shouldTrigger) return;
+
+    const reposToAnalyze =
+      autoAnalyzePlan.reposToAnalyze.length > 0
+        ? autoAnalyzePlan.reposToAnalyze
+        : githubRepos[0]
+          ? [{ owner, name: githubRepos[0].name }]
+          : [];
+
+    if (reposToAnalyze.length === 0) return;
+
+    if (autoAnalyzePlan.showBootstrapIndicator) {
+      setIsFirstIngestion(true);
+    }
+
+    void postJson("/api/analyze/user", { repos: reposToAnalyze })
+      .then(() => {
+        if (autoAnalyzePlan.showBootstrapIndicator) {
+          // Keep "initializing" briefly to avoid flicker before reactive data updates.
+          setTimeout(() => setIsFirstIngestion(false), 3000);
+        }
+      })
+      .catch((error) => {
+        logger.error("Failed to queue user analysis", error, { owner: owner });
+        setIsFirstIngestion(false);
+      });
+  }, [autoAnalyzePlan, githubRepos, hasTriggered, owner]);
 
   const multiStats = useQuery(
     api.queries.stats.getMultiRepoWeeklyStats,
@@ -436,9 +467,9 @@ export function UserDashboardContent({ owner }: { owner: string }) {
           <div className="flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400/80">
             <Loader2 className="h-3 w-3 animate-spin" />
             <span>
-              {syncedCount === 0 && activeCount === 0
-                ? "Initializing analysis"
-                : `Synced ${syncedCount}/${totalRepoCount} repos`}
+              {isAnySyncing
+                ? `Synced ${syncedCount}/${totalRepoCount} repos`
+                : "Initializing analysis"}
             </span>
           </div>
           {currentlySyncing && (

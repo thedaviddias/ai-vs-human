@@ -14,6 +14,11 @@ export default function robots(): MetadataRoute.Robots {
         allow: ["/", "/api/og/"],
         disallow: ["/api/"],
       },
+      {
+        userAgent: "Twitterbot",
+        allow: ["/", "/api/og/"],
+        disallow: ["/api/"],
+      },
     ],
     host: siteConfig.url,
     sitemap: `${siteConfig.url}/sitemap.xml`,
