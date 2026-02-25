@@ -6,10 +6,13 @@ interface OwnerAggregate {
   owner: string;
   repoCount: number;
   humanCommits: number;
-  botCommits: number;
+  botCommits: number; // AI Assistants
+  automationCommits: number; // Maintenance bots
   totalCommits: number;
   humanAdditions: number;
   aiAdditions: number;
+  automationAdditions: number;
+  totalAdditions: number;
   lastIndexedAt: number;
   isSyncing: boolean;
 }
@@ -42,9 +45,12 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         repoCount: 0,
         humanCommits: 0,
         botCommits: 0,
+        automationCommits: 0,
         totalCommits: 0,
         humanAdditions: 0,
         aiAdditions: 0,
+        automationAdditions: 0,
+        totalAdditions: 0,
         lastIndexedAt: repo.requestedAt,
         isSyncing: isRepoSyncing,
       });
@@ -61,15 +67,14 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
       .collect();
 
     let repoHumanCommits = 0;
-    let repoBotCommits = 0;
+    let repoBotCommits = 0; // AI assistants
+    let repoAutomationCommits = 0; // Maintenance bots
     let repoHumanAdditions = 0;
     let repoAiAdditions = 0;
+    let repoTotalAdditions = 0;
 
     for (const week of weeklyStats) {
       repoHumanCommits += week.human;
-      // Only count AI coding tools, NOT automation bots (dependabot, renovate,
-      // githubActions, otherBot). This matches the dashboard methodology so
-      // percentages are consistent across cards and detail pages.
       repoBotCommits +=
         week.copilot +
         week.claude +
@@ -80,7 +85,9 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         (week.openaiCodex ?? 0) +
         (week.gemini ?? 0);
 
-      // LOC (additions) per classification
+      repoAutomationCommits += week.dependabot + week.renovate + week.githubActions + week.otherBot;
+
+      // LOC (additions)
       repoHumanAdditions += week.humanAdditions ?? 0;
       repoAiAdditions +=
         (week.copilotAdditions ?? 0) +
@@ -91,28 +98,33 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         (week.devinAdditions ?? 0) +
         (week.openaiCodexAdditions ?? 0) +
         (week.geminiAdditions ?? 0);
+      repoTotalAdditions += week.totalAdditions ?? 0;
     }
 
-    const repoTotalCommits = repoHumanCommits + repoBotCommits;
+    const repoTotalCommits = repoHumanCommits + repoBotCommits + repoAutomationCommits;
+    const repoAutomationAdditions = Math.max(
+      0,
+      repoTotalAdditions - repoHumanAdditions - repoAiAdditions
+    );
     const repoLastIndexedAt = repo.lastSyncedAt ?? repo.requestedAt;
     const existing = owners.get(repo.owner)!;
 
     existing.repoCount += 1;
     existing.humanCommits += repoHumanCommits;
     existing.botCommits += repoBotCommits;
+    existing.automationCommits += repoAutomationCommits;
     existing.totalCommits += repoTotalCommits;
     existing.humanAdditions += repoHumanAdditions;
     existing.aiAdditions += repoAiAdditions;
+    existing.automationAdditions += repoAutomationAdditions;
+    existing.totalAdditions += repoTotalAdditions;
     existing.lastIndexedAt = Math.max(existing.lastIndexedAt, repoLastIndexedAt);
   }
 
   return Array.from(owners.values())
     .filter((owner) => owner.repoCount > 0) // Only show users who have at least one synced repo
     .map((owner) => {
-      // Use LOC-based percentages as primary (matches dashboard's StatsSummary),
-      // falling back to commit-based when LOC data isn't available yet.
-      const locTotal = owner.humanAdditions + owner.aiAdditions;
-      const hasLocData = locTotal > 0;
+      const hasLocData = owner.totalAdditions > 0;
 
       return {
         owner: owner.owner,
@@ -121,18 +133,18 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         totalCommits: owner.totalCommits,
         humanCommits: owner.humanCommits,
         botCommits: owner.botCommits,
+        automationCommits: owner.automationCommits,
         lastIndexedAt: owner.lastIndexedAt,
         isSyncing: owner.isSyncing,
         humanPercentage: hasLocData
-          ? formatPercentage((owner.humanAdditions / locTotal) * 100)
-          : owner.totalCommits > 0
-            ? formatPercentage((owner.humanCommits / owner.totalCommits) * 100)
-            : "0",
+          ? formatPercentage((owner.humanAdditions / owner.totalAdditions) * 100)
+          : formatPercentage((owner.humanCommits / owner.totalCommits) * 100),
         botPercentage: hasLocData
-          ? formatPercentage((owner.aiAdditions / locTotal) * 100)
-          : owner.totalCommits > 0
-            ? formatPercentage((owner.botCommits / owner.totalCommits) * 100)
-            : "0",
+          ? formatPercentage((owner.aiAdditions / owner.totalAdditions) * 100)
+          : formatPercentage((owner.botCommits / owner.totalCommits) * 100),
+        automationPercentage: hasLocData
+          ? formatPercentage((owner.automationAdditions / owner.totalAdditions) * 100)
+          : formatPercentage((owner.automationCommits / owner.totalCommits) * 100),
       };
     })
     .sort(

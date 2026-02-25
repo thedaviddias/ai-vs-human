@@ -15,12 +15,14 @@ const chartModes = ["loc", "commits"] as const;
 
 interface GlobalSummaryData {
   totals: { total: number };
-  botPercentage: string;
+  aiPercentage: string;
   humanPercentage: string;
+  automationPercentage: string;
   trend?: number;
   repoCount?: number;
-  locBotPercentage?: string | null;
+  locAiPercentage?: string | null;
   locHumanPercentage?: string | null;
+  locAutomationPercentage?: string | null;
   locTotals?: {
     totalAdditions?: number;
   };
@@ -32,6 +34,7 @@ interface IndexedUserData {
   avatarUrl: string;
   humanPercentage: string;
   botPercentage: string;
+  automationPercentage: string;
   totalCommits: number;
   repoCount: number;
   lastIndexedAt: number;
@@ -101,12 +104,14 @@ export function HomeContent({
           <ErrorBoundary level="section">
             <StatsSummary
               totalCommits={globalSummary.totals.total}
-              botPercentage={globalSummary.botPercentage}
+              botPercentage={globalSummary.aiPercentage}
               humanPercentage={globalSummary.humanPercentage}
+              automationPercentage={globalSummary.automationPercentage}
               trend={globalSummary.trend}
               repoCount={globalSummary.repoCount}
-              locBotPercentage={globalSummary.locBotPercentage}
+              locBotPercentage={globalSummary.locAiPercentage}
               locHumanPercentage={globalSummary.locHumanPercentage}
+              locAutomationPercentage={globalSummary.locAutomationPercentage}
               totalAdditions={globalSummary.locTotals?.totalAdditions}
               hasLocData={globalSummary.hasLocData}
               isGlobal={true}
@@ -206,6 +211,7 @@ export function HomeContent({
                     followers={user.profile?.followers}
                     humanPercentage={user.humanPercentage}
                     botPercentage={user.botPercentage}
+                    automationPercentage={user.automationPercentage}
                     totalCommits={user.totalCommits}
                     repoCount={user.repoCount}
                     lastIndexedAt={user.lastIndexedAt}

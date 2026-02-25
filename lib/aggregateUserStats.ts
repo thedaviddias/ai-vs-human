@@ -146,9 +146,10 @@ export function aggregateMultiRepoStats(stats: WeeklyStatRow[]): AggregatedWeek[
 /**
  * Computes summary stats from aggregated weekly data.
  *
- * Focuses on AI tools only — automation bots (dependabot, renovate,
- * github-actions, other-bot) are excluded from totals and percentages.
- * This gives a cleaner signal: "Of actual code commits, how many involved AI?"
+ * Distinguishes between:
+ * - Human: Manual commits
+ * - AI: Assistive tools (Copilot, Claude, Cursor, etc.)
+ * - Automation: Maintenance bots (Dependabot, Renovate, GitHub Actions, etc.)
  */
 export function computeUserSummary(aggregated: AggregatedWeek[]) {
   const totals = aggregated.reduce(
@@ -162,18 +163,28 @@ export function computeUserSummary(aggregated: AggregatedWeek[]) {
         (week.devin ?? 0) +
         (week.openaiCodex ?? 0) +
         (week.gemini ?? 0);
+
+      const automationCommits =
+        (week.dependabot ?? 0) +
+        (week.renovate ?? 0) +
+        (week.githubActions ?? 0) +
+        (week.otherBot ?? 0);
+
       return {
         human: acc.human + (week.human ?? 0),
         ai: acc.ai + aiCommits,
-        total: acc.total + (week.human ?? 0) + aiCommits,
+        automation: acc.automation + automationCommits,
+        total: acc.total + (week.human ?? 0) + aiCommits + automationCommits,
       };
     },
-    { human: 0, ai: 0, total: 0 }
+    { human: 0, ai: 0, automation: 0, total: 0 }
   );
 
   const aiPercentage = totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0";
   const humanPercentage =
     totals.total > 0 ? formatPercentage((totals.human / totals.total) * 100) : "0";
+  const automationPercentage =
+    totals.total > 0 ? formatPercentage((totals.automation / totals.total) * 100) : "0";
 
   // Trend: compare last 4 weeks vs previous 4 weeks (AI commits only)
   const recent = aggregated.slice(-4);
@@ -210,30 +221,43 @@ export function computeUserSummary(aggregated: AggregatedWeek[]) {
         (week.devinAdditions ?? 0) +
         (week.openaiCodexAdditions ?? 0) +
         (week.geminiAdditions ?? 0);
+
+      const humanAdditions = week.humanAdditions ?? 0;
+
+      // Note: We don't currently track additions for all bot types separately in the schema
+      // but they are included in totalAdditions. For the 3-way breakdown, we treat
+      // automation additions as the remainder.
+      const totalAdditions = week.totalAdditions ?? 0;
+      const automationAdditions = Math.max(0, totalAdditions - humanAdditions - aiAdditions);
+
       return {
-        humanAdditions: acc.humanAdditions + (week.humanAdditions ?? 0),
+        humanAdditions: acc.humanAdditions + humanAdditions,
         aiAdditions: acc.aiAdditions + aiAdditions,
-        totalAdditions: acc.totalAdditions + (week.totalAdditions ?? 0),
+        automationAdditions: acc.automationAdditions + automationAdditions,
+        totalAdditions: acc.totalAdditions + totalAdditions,
       };
     },
-    { humanAdditions: 0, aiAdditions: 0, totalAdditions: 0 }
+    { humanAdditions: 0, aiAdditions: 0, automationAdditions: 0, totalAdditions: 0 }
   );
 
-  const locTotal = locTotals.humanAdditions + locTotals.aiAdditions;
-  const hasLocData = locTotal > 0;
+  const hasLocData = locTotals.totalAdditions > 0;
 
   return {
     totals,
-    botPercentage: aiPercentage,
+    aiPercentage,
     humanPercentage,
+    automationPercentage,
     trend: Math.round(trend),
     // LOC metrics
     locTotals,
     locBotPercentage: hasLocData
-      ? formatPercentage((locTotals.aiAdditions / locTotal) * 100)
+      ? formatPercentage((locTotals.aiAdditions / locTotals.totalAdditions) * 100)
       : null,
     locHumanPercentage: hasLocData
-      ? formatPercentage((locTotals.humanAdditions / locTotal) * 100)
+      ? formatPercentage((locTotals.humanAdditions / locTotals.totalAdditions) * 100)
+      : null,
+    locAutomationPercentage: hasLocData
+      ? formatPercentage((locTotals.automationAdditions / locTotals.totalAdditions) * 100)
       : null,
     hasLocData,
   };

@@ -167,7 +167,7 @@ describe("aggregateMultiRepoStats", () => {
 
 describe("computeUserSummary", () => {
   describe("commit-based totals", () => {
-    it("counts AI as aiAssisted + copilot + claude + cursor (excludes bots)", () => {
+    it("counts AI as aiAssisted + copilot + claude + cursor (separate from automation)", () => {
       const input = [
         makeWeek({
           human: 50,
@@ -175,22 +175,23 @@ describe("computeUserSummary", () => {
           claude: 5,
           cursor: 3,
           aiAssisted: 2,
-          dependabot: 100, // excluded!
-          renovate: 50, // excluded!
+          dependabot: 100,
+          renovate: 50,
           total: 220,
         }),
       ];
       const summary = computeUserSummary(input);
       expect(summary.totals.ai).toBe(20); // 10 + 5 + 3 + 2
       expect(summary.totals.human).toBe(50);
-      expect(summary.totals.total).toBe(70); // 50 + 20 (bots excluded)
+      expect(summary.totals.automation).toBe(150); // 100 + 50
+      expect(summary.totals.total).toBe(220); // 50 + 20 + 150
     });
 
     it("computes correct AI percentage", () => {
       const input = [makeWeek({ human: 80, copilot: 20, total: 100 })];
       const summary = computeUserSummary(input);
       // AI = 20, total = 100, percentage = 20%
-      expect(summary.botPercentage).toBe("20.0");
+      expect(summary.aiPercentage).toBe("20.0");
       expect(summary.humanPercentage).toBe("80.0");
     });
   });
@@ -212,7 +213,7 @@ describe("computeUserSummary", () => {
     });
 
     it("hasLocData = true when LOC data exists", () => {
-      const input = [makeWeek({ humanAdditions: 100 })];
+      const input = [makeWeek({ humanAdditions: 100, totalAdditions: 100 })];
       const summary = computeUserSummary(input);
       expect(summary.hasLocData).toBe(true);
     });
@@ -230,6 +231,7 @@ describe("computeUserSummary", () => {
         makeWeek({
           humanAdditions: 200,
           copilotAdditions: 800,
+          totalAdditions: 1000,
         }),
       ];
       const summary = computeUserSummary(input);
@@ -302,9 +304,9 @@ describe("computeUserSummary", () => {
 
       // By commits: 50/(50+5) = 90.9% human — MISLEADING
       expect(summary.humanPercentage).toBe("90.9");
-      expect(summary.botPercentage).toBe("9.1");
+      expect(summary.aiPercentage).toBe("9.1");
 
-      // By LOC: 4500/(500+4500) = 90% AI — ACCURATE
+      // By LOC: 4500/5000 = 90% AI — ACCURATE
       expect(summary.locBotPercentage).toBe("90.0");
       expect(summary.locHumanPercentage).toBe("10.0");
 

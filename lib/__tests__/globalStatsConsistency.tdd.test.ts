@@ -97,21 +97,23 @@ describe("AI tool counting consistency (regression)", () => {
     expect(result.locTotals.aiAdditions).toBe(expectedAILoc);
   });
 
-  it("human + AI percentages are consistent (sum to ~100%)", () => {
+  it("human + AI + automation percentages are consistent (sum to ~100%)", () => {
     const result = computeUserSummary([weekWithAllTools]);
 
     const humanPct = parseFloat(result.humanPercentage);
-    const aiPct = parseFloat(result.botPercentage);
-    expect(humanPct + aiPct).toBeCloseTo(100, 0);
+    const aiPct = parseFloat(result.aiPercentage);
+    const automationPct = parseFloat(result.automationPercentage);
+    expect(humanPct + aiPct + automationPct).toBeCloseTo(100, 0);
   });
 
-  it("LOC human + AI percentages are consistent (sum to ~100%)", () => {
+  it("LOC human + AI + automation percentages are consistent (sum to ~100%)", () => {
     const result = computeUserSummary([weekWithAllTools]);
 
     expect(result.hasLocData).toBe(true);
     const humanLocPct = parseFloat(result.locHumanPercentage!);
     const aiLocPct = parseFloat(result.locBotPercentage!);
-    expect(humanLocPct + aiLocPct).toBeCloseTo(100, 0);
+    const automationLocPct = parseFloat(result.locAutomationPercentage!);
+    expect(humanLocPct + aiLocPct + automationLocPct).toBeCloseTo(100, 0);
   });
 
   it("all 8 AI tool commit fields exist in AggregatedWeek type", () => {

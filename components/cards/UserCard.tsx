@@ -14,6 +14,7 @@ interface UserCardProps {
   followers?: number;
   humanPercentage: string;
   botPercentage: string;
+  automationPercentage?: string;
   totalCommits: number;
   repoCount: number;
   lastIndexedAt?: number;
@@ -51,6 +52,7 @@ export function UserCard({
   followers: initialFollowers,
   humanPercentage,
   botPercentage,
+  automationPercentage,
   totalCommits,
   repoCount,
   lastIndexedAt,
@@ -182,6 +184,7 @@ export function UserCard({
           <HumanAiBadges
             humanPercentage={humanPercentage}
             aiPercentage={botPercentage}
+            automationPercentage={automationPercentage}
             aiLabel="AI"
           />
         )}

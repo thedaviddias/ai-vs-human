@@ -518,12 +518,28 @@ export function UserDashboardContent({ owner }: { owner: string }) {
         </div>
 
         <h1 className="mt-6 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          {githubDisplayName ?? `@${owner}`}
+          {githubDisplayName ? (
+            githubDisplayName
+          ) : (
+            <a
+              href={`https://github.com/${owner}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              @{owner}
+            </a>
+          )}
         </h1>
         {githubDisplayName && (
-          <p className="mt-2 text-neutral-500 text-sm font-medium uppercase tracking-widest">
+          <a
+            href={`https://github.com/${owner}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 block text-neutral-500 text-sm font-medium uppercase tracking-widest hover:text-neutral-300 transition-colors"
+          >
             @{owner}
-          </p>
+          </a>
         )}
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -531,7 +547,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             <ShareButtons
               label={owner}
               type="user"
-              botPercentage={userSummary?.botPercentage ?? "0"}
+              botPercentage={userSummary?.aiPercentage ?? "0"}
             />
           </ErrorBoundary>
           <button
@@ -610,12 +626,14 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             <ErrorBoundary level="section">
               <StatsSummary
                 totalCommits={userSummary.totals.total}
-                botPercentage={userSummary.botPercentage}
+                botPercentage={userSummary.aiPercentage}
                 humanPercentage={userSummary.humanPercentage}
+                automationPercentage={userSummary.automationPercentage}
                 trend={userSummary.trend}
                 repoCount={syncedCount}
                 locBotPercentage={userSummary.locBotPercentage}
                 locHumanPercentage={userSummary.locHumanPercentage}
+                locAutomationPercentage={userSummary.locAutomationPercentage}
                 totalAdditions={userSummary.locTotals?.totalAdditions}
                 hasLocData={userSummary.hasLocData}
               />

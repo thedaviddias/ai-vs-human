@@ -37,9 +37,6 @@ export const getGlobalSummary = query({
       .withIndex("by_syncStatus", (q) => q.eq("syncStatus", "synced"))
       .collect();
 
-    // Focus on AI tools only — exclude automation bots from totals.
-    // AI = copilot + claude + cursor + aider + devin + openai-codex + gemini + ai-assisted
-    // Excluded: dependabot, renovate, github-actions, other-bot
     const totals = stats.reduce(
       (acc, week) => {
         const ai =
@@ -51,17 +48,19 @@ export const getGlobalSummary = query({
           (week.devin ?? 0) +
           (week.openaiCodex ?? 0) +
           (week.gemini ?? 0);
+        const automation = week.dependabot + week.renovate + week.githubActions + week.otherBot;
+
         return {
           human: acc.human + week.human,
           ai: acc.ai + ai,
-          total: acc.total + week.human + ai,
+          automation: acc.automation + automation,
+          total: acc.total + week.human + ai + automation,
         };
       },
-      { human: 0, ai: 0, total: 0 }
+      { human: 0, ai: 0, automation: 0, total: 0 }
     );
 
     // Trend: compare most recent 4 weeks vs the 4 weeks before that.
-    // Keep semantics aligned with homepage totals: AI tools only.
     const sortedByWeek = [...stats].sort((a, b) => b.weekStart - a.weekStart);
     const recent = sortedByWeek.slice(0, 4);
     const previous = sortedByWeek.slice(4, 8);
@@ -85,7 +84,7 @@ export const getGlobalSummary = query({
     const previousAi = sumAi(previous);
     const trend = previousAi > 0 ? ((recentAi - previousAi) / previousAi) * 100 : 0;
 
-    // LOC-based metrics (additions only, for AI tool categories + human)
+    // LOC-based metrics
     const locTotals = stats.reduce(
       (acc, week) => {
         const aiAdditions =
@@ -98,32 +97,40 @@ export const getGlobalSummary = query({
           (week.openaiCodexAdditions ?? 0) +
           (week.geminiAdditions ?? 0);
         const humanAdditions = week.humanAdditions ?? 0;
+        const totalAdditions = week.totalAdditions ?? 0;
+        const automationAdditions = Math.max(0, totalAdditions - humanAdditions - aiAdditions);
+
         return {
           humanAdditions: acc.humanAdditions + humanAdditions,
           aiAdditions: acc.aiAdditions + aiAdditions,
-          totalAdditions: acc.totalAdditions + (week.totalAdditions ?? 0),
+          automationAdditions: acc.automationAdditions + automationAdditions,
+          totalAdditions: acc.totalAdditions + totalAdditions,
         };
       },
-      { humanAdditions: 0, aiAdditions: 0, totalAdditions: 0 }
+      { humanAdditions: 0, aiAdditions: 0, automationAdditions: 0, totalAdditions: 0 }
     );
 
-    const locTotal = locTotals.humanAdditions + locTotals.aiAdditions;
-    const hasLocData = locTotal > 0;
+    const hasLocData = locTotals.totalAdditions > 0;
 
     return {
       totals,
       repoCount: repoCount.length,
-      botPercentage: totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0",
       humanPercentage:
         totals.total > 0 ? formatPercentage((totals.human / totals.total) * 100) : "0",
+      aiPercentage: totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0",
+      automationPercentage:
+        totals.total > 0 ? formatPercentage((totals.automation / totals.total) * 100) : "0",
       trend: Math.round(trend),
-      // LOC metrics — null when data not yet available
+      // LOC metrics
       locTotals,
-      locBotPercentage: hasLocData
-        ? formatPercentage((locTotals.aiAdditions / locTotal) * 100)
-        : null,
       locHumanPercentage: hasLocData
-        ? formatPercentage((locTotals.humanAdditions / locTotal) * 100)
+        ? formatPercentage((locTotals.humanAdditions / locTotals.totalAdditions) * 100)
+        : null,
+      locAiPercentage: hasLocData
+        ? formatPercentage((locTotals.aiAdditions / locTotals.totalAdditions) * 100)
+        : null,
+      locAutomationPercentage: hasLocData
+        ? formatPercentage((locTotals.automationAdditions / locTotals.totalAdditions) * 100)
         : null,
       hasLocData,
     };

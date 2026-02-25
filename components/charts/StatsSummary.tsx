@@ -6,13 +6,15 @@ import { getRank } from "@/lib/ranks";
 
 interface StatsSummaryProps {
   totalCommits: number;
-  botPercentage: string;
+  botPercentage: string; // This is AI
   humanPercentage: string;
+  automationPercentage?: string;
   trend?: number;
   repoCount?: number;
   // LOC metrics (optional — graceful degradation when absent)
   locBotPercentage?: string | null;
   locHumanPercentage?: string | null;
+  locAutomationPercentage?: string | null;
   totalAdditions?: number;
   hasLocData?: boolean;
   isGlobal?: boolean;
@@ -38,13 +40,14 @@ function StatCard({
   icon: ReactNode;
   subtext?: string;
   tooltip: string;
-  variant?: "default" | "human" | "ai" | "accent" | "rank" | "global";
+  variant?: "default" | "human" | "ai" | "bot" | "accent" | "rank" | "global";
   textColor?: string;
 }) {
   const iconColors = {
     default: "text-neutral-400",
     human: "text-green-500",
     ai: "text-purple-500",
+    bot: "text-blue-400",
     accent: "text-blue-500",
     rank: "text-amber-400",
     global: "text-blue-400",
@@ -69,7 +72,7 @@ function StatCard({
           {value}
         </div>
         <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-neutral-500">
-          <span>{label}</span>
+          <span className="truncate">{label}</span>
           <span className="group relative inline-flex">
             <button
               type="button"
@@ -93,12 +96,14 @@ function StatCard({
 
 export function StatsSummary({
   totalCommits,
-  botPercentage,
+  botPercentage, // AI
   humanPercentage,
+  automationPercentage = "0",
   trend: _trend,
   repoCount,
   locBotPercentage,
   locHumanPercentage,
+  locAutomationPercentage,
   totalAdditions,
   hasLocData,
   isGlobal = false,
@@ -111,8 +116,16 @@ export function StatsSummary({
   const aiValue = hasLocData && locBotPercentage ? `${locBotPercentage}%` : `${botPercentage}%`;
   const aiSubtext = hasLocData && locBotPercentage ? `${botPercentage}% commits` : undefined;
 
-  const humanLabel = hasLocData ? "Human Code Contribution" : "Human Commits";
-  const aiLabel = hasLocData ? "AI/Bot Code Contribution" : "AI/Bot Commits";
+  const automationValue =
+    hasLocData && locAutomationPercentage
+      ? `${locAutomationPercentage}%`
+      : `${automationPercentage}%`;
+  const automationSubtext =
+    hasLocData && locAutomationPercentage ? `${automationPercentage}% commits` : undefined;
+
+  const humanLabel = hasLocData ? "Human Code" : "Human Commits";
+  const aiLabel = hasLocData ? "AI Assistants" : "AI Commits";
+  const automationLabel = hasLocData ? "Automation" : "Bot Commits";
 
   // Calculate Rank
   const humanPct = Number.parseFloat(
@@ -123,28 +136,33 @@ export function StatsSummary({
     ? ` Based on ${formatNumber(totalAdditions ?? 0)} total added lines.`
     : "";
 
-  const totalCommitsTooltip = `Total analyzed commits across ${
+  const totalCommitsTooltip = `Total analyzed activity across ${
     repoCount ? `${repoCount} repositories` : "the selected repositories"
-  }. Formula: human commits + AI-tool commits (Copilot, Claude, Cursor, AI-assisted).`;
+  }. Includes human manual work, AI assistance, and maintenance bots.`;
 
   const humanTooltip =
     hasLocData && locHumanPercentage
-      ? `Percent of added lines attributed to humans. Formula: human additions / (human additions + AI additions) × 100.${additionsContext}`
-      : "Percent of analyzed commits attributed to humans. Formula: human commits / (human commits + AI-tool commits) × 100.";
+      ? `Percent of added lines attributed to humans.${additionsContext}`
+      : "Percent of analyzed commits attributed to humans.";
 
   const aiTooltip =
     hasLocData && locBotPercentage
-      ? `Percent of added lines attributed to AI tools. Formula: AI additions / (human additions + AI additions) × 100.${additionsContext}`
-      : "Percent of analyzed commits attributed to AI tools. Formula: AI-tool commits / (human commits + AI-tool commits) × 100.";
+      ? `Percent of added lines attributed to AI assistants (Copilot, Cursor, etc.).${additionsContext}`
+      : "Percent of analyzed commits using AI tools.";
+
+  const automationTooltip =
+    hasLocData && locAutomationPercentage
+      ? `Percent of added lines from automation bots (Dependabot, Renovate, etc.).${additionsContext}`
+      : "Percent of analyzed commits from maintenance bots.";
 
   const rankTooltip = isGlobal
     ? "Aggregated global view across all indexed repositories currently tracked in AI vs Human."
     : "Developer rank is derived from the Human percentage shown in this summary.";
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
       <StatCard
-        label="Total Commits"
+        label="Total Activity"
         value={formatNumber(totalCommits)}
         icon={<Cpu className="h-5 w-5" />}
         subtext={repoCount ? `${repoCount} repos` : undefined}
@@ -165,6 +183,14 @@ export function StatsSummary({
         subtext={aiSubtext}
         variant="ai"
         tooltip={aiTooltip}
+      />
+      <StatCard
+        label={automationLabel}
+        value={automationValue}
+        icon={<Bot className="h-5 w-5" />}
+        subtext={automationSubtext}
+        variant="bot"
+        tooltip={automationTooltip}
       />
       {isGlobal ? (
         <StatCard

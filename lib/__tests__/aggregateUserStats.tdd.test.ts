@@ -5,8 +5,8 @@
  * NOT what the code currently does. If a test fails, it's a bug in the code.
  *
  * Key invariants from the docstring:
- * 1. "AI tools only — automation bots excluded from totals and percentages"
- * 2. humanPercentage + botPercentage should ≈ 100% (within rounding)
+ * 1. Three-way split: Human, AI Assistants, Automation Bots
+ * 2. humanPercentage + aiPercentage + automationPercentage should ≈ 100%
  * 3. LOC percentages should never be NaN
  * 4. Empty input should produce sensible defaults (not NaN, not crashes)
  * 5. Trend calculation should handle < 8 weeks gracefully
@@ -55,30 +55,32 @@ describe("computeUserSummary — edge cases (TDD)", () => {
   it("returns zero percentages for empty input (no NaN)", () => {
     const result = computeUserSummary([]);
 
-    expect(result.botPercentage).toBe("0");
+    expect(result.aiPercentage).toBe("0");
     expect(result.humanPercentage).toBe("0");
+    expect(result.automationPercentage).toBe("0");
     expect(result.trend).toBe(0);
     expect(result.hasLocData).toBe(false);
     expect(result.locBotPercentage).toBeNull();
     expect(result.locHumanPercentage).toBeNull();
     // Ensure no NaN sneaks in
-    expect(Number.isNaN(Number(result.botPercentage))).toBe(false);
+    expect(Number.isNaN(Number(result.aiPercentage))).toBe(false);
     expect(Number.isNaN(Number(result.humanPercentage))).toBe(false);
   });
 
-  it("returns zero percentages when all commits are bots (excluded from totals)", () => {
-    // Dependabot commits should be excluded from AI + human totals
+  it("automation bots are counted separately in totals", () => {
     const weeks = [makeWeek({ weekLabel: "2025-W01", dependabot: 50, renovate: 10, total: 60 })];
 
     const result = computeUserSummary(weeks);
 
-    // With only bot commits (excluded), total should be 0
-    expect(result.totals.total).toBe(0);
-    expect(result.botPercentage).toBe("0");
+    // Automation bots now contribute to total (3-way split)
+    expect(result.totals.automation).toBe(60);
+    expect(result.totals.total).toBe(60);
+    expect(result.automationPercentage).toBe("100.0");
+    expect(result.aiPercentage).toBe("0");
     expect(result.humanPercentage).toBe("0");
   });
 
-  it("human + AI percentages sum to ~100% for mixed commits", () => {
+  it("human + AI + automation percentages sum to ~100% for mixed commits", () => {
     const weeks = [
       makeWeek({ weekLabel: "2025-W01", human: 70, copilot: 20, claude: 10, total: 100 }),
     ];
@@ -86,10 +88,11 @@ describe("computeUserSummary — edge cases (TDD)", () => {
     const result = computeUserSummary(weeks);
 
     const humanPct = parseFloat(result.humanPercentage);
-    const aiPct = parseFloat(result.botPercentage);
+    const aiPct = parseFloat(result.aiPercentage);
+    const automationPct = parseFloat(result.automationPercentage);
 
     // They should sum to 100 within floating-point rounding
-    expect(humanPct + aiPct).toBeCloseTo(100, 0);
+    expect(humanPct + aiPct + automationPct).toBeCloseTo(100, 0);
   });
 
   it("counts ALL AI tools, not just some (aider, devin, openaiCodex, gemini)", () => {
@@ -114,7 +117,7 @@ describe("computeUserSummary — edge cases (TDD)", () => {
     expect(result.totals.human).toBe(50);
     expect(result.totals.total).toBe(100);
     expect(result.humanPercentage).toBe("50.0");
-    expect(result.botPercentage).toBe("50.0");
+    expect(result.aiPercentage).toBe("50.0");
   });
 
   it("LOC percentages handle zero LOC without NaN", () => {
