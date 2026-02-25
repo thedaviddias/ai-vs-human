@@ -59,6 +59,12 @@ interface GraphQLResponse {
 }
 
 /**
+ * Cap pagination at 50 pages (5,000 commits). Beyond this, LOC data is
+ * "good enough" and we avoid stalling the pipeline on very large repos.
+ */
+const MAX_LOC_PAGES = 50;
+
+/**
  * Enriches stored commits with additions/deletions via GitHub GraphQL API.
  *
  * Inserted into the pipeline between fetchCommits and classifyPRs:
@@ -77,8 +83,11 @@ export const fetchCommitStats = internalAction({
     name: v.string(),
     cursor: v.optional(v.string()),
     totalCommits: v.number(),
+    pagesProcessed: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const currentPage = (args.pagesProcessed ?? 0) + 1;
+
     /** Transition to classifying_prs stage and schedule classifyPRs */
     const scheduleClassifyPRs = async () => {
       await ctx.runMutation(internal.github.ingestRepo.updateSyncProgress, {
@@ -92,6 +101,15 @@ export const fetchCommitStats = internalAction({
         totalCommits: args.totalCommits,
       });
     };
+
+    // Guard: stop paginating after MAX_LOC_PAGES to avoid stalling on huge repos
+    if (currentPage > MAX_LOC_PAGES) {
+      console.log(
+        `[fetchCommitStats] Hit max page limit (${MAX_LOC_PAGES}) for ${args.owner}/${args.name}, proceeding to classifyPRs`
+      );
+      await scheduleClassifyPRs();
+      return;
+    }
 
     const token = process.env.GITHUB_TOKEN;
     if (!token) {
@@ -179,6 +197,7 @@ export const fetchCommitStats = internalAction({
           name: args.name,
           cursor: history.pageInfo.endCursor,
           totalCommits: args.totalCommits,
+          pagesProcessed: currentPage,
         });
       } else {
         await scheduleClassifyPRs();
@@ -195,6 +214,7 @@ export const fetchCommitStats = internalAction({
         name: args.name,
         cursor: history.pageInfo.endCursor,
         totalCommits: args.totalCommits,
+        pagesProcessed: currentPage,
       });
     } else {
       // All LOC data enriched — proceed to PR classification
