@@ -81,6 +81,7 @@ export function createMetadata(config: MetadataConfig): Metadata {
   const allKeywords = [...new Set([...DEFAULT_KEYWORDS, ...keywords])];
 
   const metadata: Metadata = {
+    metadataBase: new URL(siteConfig.url),
     title: noSuffix ? { absolute: title } : title,
     description,
     keywords: allKeywords,
