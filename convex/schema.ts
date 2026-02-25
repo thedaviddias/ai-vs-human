@@ -144,8 +144,10 @@ export default defineSchema({
     date: v.number(), // epoch ms, midnight UTC
     human: v.number(),
     ai: v.number(),
+    automation: v.optional(v.number()),
     humanAdditions: v.number(),
     aiAdditions: v.number(),
+    automationAdditions: v.optional(v.number()),
   })
     .index("by_repo", ["repoId"])
     .index("by_repo_and_date", ["repoId", "date"]),
@@ -154,8 +156,10 @@ export default defineSchema({
     date: v.number(), // epoch ms, midnight UTC
     human: v.number(),
     ai: v.number(),
+    automation: v.optional(v.number()),
     humanAdditions: v.number(),
     aiAdditions: v.number(),
+    automationAdditions: v.optional(v.number()),
     repoCount: v.number(),
   }).index("by_date", ["date"]),
 

@@ -52,14 +52,14 @@ To ensure your tools are correctly detected, see our [AI Attribution guide](/doc
 - **Cursor** — Cursor editor and Cursor Agent
 - **AI-assisted** — Devin, OpenAI Codex, Aider, Windsurf, Gemini Code Assist, Amazon Q Developer, and other AI coding tools
 
-### Automation Bots (excluded from AI %)
+### Automation Bots (shown separately from AI %)
 
 - **Dependabot** — Dependency version updates
 - **Renovate** — Dependency version updates
 - **GitHub Actions** — CI/CD automation
 - **Other bots** — Vercel, Netlify, Codecov, semantic-release, imgbot, and similar automation
 
-Automation bots like Dependabot perform routine maintenance — they don't represent the kind of AI-assisted coding that this project aims to measure. Including them would inflate the AI percentage and obscure the real signal.
+Automation bots like Dependabot perform routine maintenance — they don't represent the kind of AI-assisted coding that this project aims to measure. They are tracked and shown separately (as "Bot Commits" / "Automation") so you can see the full picture without inflating the AI percentage.
 
 ---
 
@@ -67,9 +67,9 @@ Automation bots like Dependabot perform routine maintenance — they don't repre
 
 After fetching commits from the GitHub REST API, we enrich them with line-of-code data using the GitHub GraphQL API.
 
-- **Additions only** — We use the `additions` field from GitHub's GraphQL API. The AI vs Human percentage for code volume is calculated as: `aiAdditions / (humanAdditions + aiAdditions)`. Deletions are tracked but not used in percentage calculations.
+- **Additions only** — We use the `additions` field from GitHub's GraphQL API. Deletions are tracked but not used in percentage calculations.
 - **Best-effort enrichment** — If the GraphQL query fails (due to rate limits, missing tokens, or API errors), the pipeline continues without code-volume data. The UI gracefully falls back to commit-count mode. You may see a warning when code-volume data is incomplete.
-- **Bots excluded** — Just as with commit counts, automation bots (Dependabot, Renovate, GitHub Actions, etc.) are excluded from code-volume metrics. Only human and AI-tool additions are counted.
+- **3-way split** — Code volume is split into human, AI tools, and automation bots — the same three categories used for commit counts. All three are visible on the heatmap and stat cards.
 
 ---
 

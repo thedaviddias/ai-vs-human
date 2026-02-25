@@ -47,7 +47,7 @@ function StatCard({
     default: "text-neutral-400",
     human: "text-green-500",
     ai: "text-purple-500",
-    bot: "text-blue-400",
+    bot: "text-amber-500",
     accent: "text-blue-500",
     rank: "text-amber-400",
     global: "text-blue-400",
@@ -108,24 +108,20 @@ export function StatsSummary({
   hasLocData,
   isGlobal = false,
 }: StatsSummaryProps) {
-  // When LOC data is available, show LOC percentages as primary and commit % as subtext
-  const humanValue =
-    hasLocData && locHumanPercentage ? `${locHumanPercentage}%` : `${humanPercentage}%`;
-  const humanSubtext = hasLocData && locHumanPercentage ? `${humanPercentage}% commits` : undefined;
+  // Commits as primary, LOC as secondary subtext (following GitHub convention)
+  const humanValue = `${humanPercentage}%`;
+  const humanSubtext = hasLocData && locHumanPercentage ? `${locHumanPercentage}% code` : undefined;
 
-  const aiValue = hasLocData && locBotPercentage ? `${locBotPercentage}%` : `${botPercentage}%`;
-  const aiSubtext = hasLocData && locBotPercentage ? `${botPercentage}% commits` : undefined;
+  const aiValue = `${botPercentage}%`;
+  const aiSubtext = hasLocData && locBotPercentage ? `${locBotPercentage}% code` : undefined;
 
-  const automationValue =
-    hasLocData && locAutomationPercentage
-      ? `${locAutomationPercentage}%`
-      : `${automationPercentage}%`;
+  const automationValue = `${automationPercentage}%`;
   const automationSubtext =
-    hasLocData && locAutomationPercentage ? `${automationPercentage}% commits` : undefined;
+    hasLocData && locAutomationPercentage ? `${locAutomationPercentage}% code` : undefined;
 
-  const humanLabel = hasLocData ? "Human Code" : "Human Commits";
-  const aiLabel = hasLocData ? "AI Assistants" : "AI Commits";
-  const automationLabel = hasLocData ? "Automation" : "Bot Commits";
+  const humanLabel = "Human Commits";
+  const aiLabel = "AI Commits";
+  const automationLabel = "Bot Commits";
 
   // Calculate Rank
   const humanPct = Number.parseFloat(

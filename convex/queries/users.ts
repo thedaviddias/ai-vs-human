@@ -136,15 +136,12 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         automationCommits: owner.automationCommits,
         lastIndexedAt: owner.lastIndexedAt,
         isSyncing: owner.isSyncing,
-        humanPercentage: hasLocData
-          ? formatPercentage((owner.humanAdditions / owner.totalAdditions) * 100)
-          : formatPercentage((owner.humanCommits / owner.totalCommits) * 100),
-        botPercentage: hasLocData
-          ? formatPercentage((owner.aiAdditions / owner.totalAdditions) * 100)
-          : formatPercentage((owner.botCommits / owner.totalCommits) * 100),
-        automationPercentage: hasLocData
-          ? formatPercentage((owner.automationAdditions / owner.totalAdditions) * 100)
-          : formatPercentage((owner.automationCommits / owner.totalCommits) * 100),
+        // Commit-based percentages (primary, following GitHub convention)
+        humanPercentage: formatPercentage((owner.humanCommits / owner.totalCommits) * 100),
+        botPercentage: formatPercentage((owner.botCommits / owner.totalCommits) * 100),
+        automationPercentage: formatPercentage(
+          (owner.automationCommits / owner.totalCommits) * 100
+        ),
       };
     })
     .sort(
@@ -230,7 +227,7 @@ export const getUserByOwner = query({
         .collect();
 
       for (const week of weeklyStats) {
-        // Commits (AI tools only, exclude automation bots)
+        // Commits (AI tools only — automation bots counted separately)
         humanCommits += week.human;
         aiCommits +=
           week.copilot +
@@ -262,7 +259,14 @@ export const getUserByOwner = query({
     // Aggregate daily stats for heatmap
     const dayBuckets = new Map<
       number,
-      { human: number; ai: number; humanAdditions: number; aiAdditions: number }
+      {
+        human: number;
+        ai: number;
+        automation: number;
+        humanAdditions: number;
+        aiAdditions: number;
+        automationAdditions: number;
+      }
     >();
 
     for (const repoId of syncedRepoIds) {
@@ -276,14 +280,18 @@ export const getUserByOwner = query({
         if (existing) {
           existing.human += stat.human;
           existing.ai += stat.ai;
+          existing.automation += stat.automation ?? 0;
           existing.humanAdditions += stat.humanAdditions;
           existing.aiAdditions += stat.aiAdditions;
+          existing.automationAdditions += stat.automationAdditions ?? 0;
         } else {
           dayBuckets.set(stat.date, {
             human: stat.human,
             ai: stat.ai,
+            automation: stat.automation ?? 0,
             humanAdditions: stat.humanAdditions,
             aiAdditions: stat.aiAdditions,
+            automationAdditions: stat.automationAdditions ?? 0,
           });
         }
       }

@@ -239,7 +239,14 @@ export const recomputeRepoStats = internalMutation({
     const weekBuckets = new Map<number, WeekBucket>();
     const dayBuckets = new Map<
       number,
-      { human: number; ai: number; humanAdditions: number; aiAdditions: number }
+      {
+        human: number;
+        ai: number;
+        automation: number;
+        humanAdditions: number;
+        aiAdditions: number;
+        automationAdditions: number;
+      }
     >();
 
     const AI_TOOL_CLASSIFICATIONS = new Set([
@@ -314,16 +321,22 @@ export const recomputeRepoStats = internalMutation({
           bucket.totalAdditions += adds;
           bucket.totalDeletions += dels;
           break;
-        // dependabot, renovate, github-actions, other-bot: excluded from LOC metrics
+        default:
+          // Automation bots: dependabot, renovate, github-actions, other-bot
+          bucket.totalAdditions += adds;
+          bucket.totalDeletions += dels;
+          break;
       }
 
-      // Daily bucketing — same human/AI split as weekly stats (bots excluded)
+      // Daily bucketing — 3-way split: human / AI / automation
       const dayStart = getDayStart(commit.authoredAt);
       const dayBucket = dayBuckets.get(dayStart) ?? {
         human: 0,
         ai: 0,
+        automation: 0,
         humanAdditions: 0,
         aiAdditions: 0,
+        automationAdditions: 0,
       };
 
       if (commit.classification === "human") {
@@ -332,8 +345,11 @@ export const recomputeRepoStats = internalMutation({
       } else if (AI_TOOL_CLASSIFICATIONS.has(commit.classification)) {
         dayBucket.ai++;
         dayBucket.aiAdditions += adds;
+      } else {
+        // Automation bots: dependabot, renovate, github-actions, other-bot
+        dayBucket.automation++;
+        dayBucket.automationAdditions += adds;
       }
-      // bots (dependabot, renovate, github-actions, other-bot) excluded
       dayBuckets.set(dayStart, dayBucket);
     }
 

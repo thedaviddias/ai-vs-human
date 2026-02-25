@@ -168,8 +168,10 @@ export const recomputeGlobalStats = internalMutation({
       {
         human: number;
         ai: number;
+        automation: number;
         humanAdditions: number;
         aiAdditions: number;
+        automationAdditions: number;
         repoIds: Set<string>;
       }
     >();
@@ -185,15 +187,19 @@ export const recomputeGlobalStats = internalMutation({
         if (existing) {
           existing.human += stat.human;
           existing.ai += stat.ai;
+          existing.automation += stat.automation ?? 0;
           existing.humanAdditions += stat.humanAdditions;
           existing.aiAdditions += stat.aiAdditions;
+          existing.automationAdditions += stat.automationAdditions ?? 0;
           existing.repoIds.add(repo._id);
         } else {
           globalDayBuckets.set(stat.date, {
             human: stat.human,
             ai: stat.ai,
+            automation: stat.automation ?? 0,
             humanAdditions: stat.humanAdditions,
             aiAdditions: stat.aiAdditions,
+            automationAdditions: stat.automationAdditions ?? 0,
             repoIds: new Set([repo._id]),
           });
         }
@@ -206,8 +212,10 @@ export const recomputeGlobalStats = internalMutation({
         date,
         human: bucket.human,
         ai: bucket.ai,
+        automation: bucket.automation,
         humanAdditions: bucket.humanAdditions,
         aiAdditions: bucket.aiAdditions,
+        automationAdditions: bucket.automationAdditions,
         repoCount: bucket.repoIds.size,
       });
     }

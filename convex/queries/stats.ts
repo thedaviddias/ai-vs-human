@@ -65,7 +65,14 @@ export const getMultiRepoDailyStats = query({
     // Aggregate daily stats across multiple repos, merging by date
     const dayBuckets = new Map<
       number,
-      { human: number; ai: number; humanAdditions: number; aiAdditions: number }
+      {
+        human: number;
+        ai: number;
+        automation: number;
+        humanAdditions: number;
+        aiAdditions: number;
+        automationAdditions: number;
+      }
     >();
 
     for (const fullName of args.repoFullNames) {
@@ -85,14 +92,18 @@ export const getMultiRepoDailyStats = query({
         if (existing) {
           existing.human += stat.human;
           existing.ai += stat.ai;
+          existing.automation += stat.automation ?? 0;
           existing.humanAdditions += stat.humanAdditions;
           existing.aiAdditions += stat.aiAdditions;
+          existing.automationAdditions += stat.automationAdditions ?? 0;
         } else {
           dayBuckets.set(stat.date, {
             human: stat.human,
             ai: stat.ai,
+            automation: stat.automation ?? 0,
             humanAdditions: stat.humanAdditions,
             aiAdditions: stat.aiAdditions,
+            automationAdditions: stat.automationAdditions ?? 0,
           });
         }
       }

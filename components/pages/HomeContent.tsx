@@ -11,7 +11,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { api } from "@/convex/_generated/api";
 
 const sortModes = ["latest", "followers"] as const;
-const chartModes = ["loc", "commits"] as const;
+const chartModes = ["commits", "loc"] as const;
 
 interface GlobalSummaryData {
   totals: { total: number };
@@ -69,7 +69,7 @@ export function HomeContent({
   );
   const [chartMode, setChartMode] = useQueryState(
     "view",
-    parseAsStringLiteral(chartModes).withDefault("loc")
+    parseAsStringLiteral(chartModes).withDefault("commits")
   );
 
   const dailyData = globalDailyStats ?? [];
@@ -131,17 +131,6 @@ export function HomeContent({
               <div className="inline-flex rounded-xl border border-neutral-200 bg-white/50 p-1 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/50">
                 <button
                   type="button"
-                  onClick={() => setChartMode("loc")}
-                  className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
-                    chartMode === "loc"
-                      ? "bg-white text-black shadow-sm"
-                      : "text-neutral-500 hover:text-neutral-700"
-                  }`}
-                >
-                  Code Volume
-                </button>
-                <button
-                  type="button"
                   onClick={() => setChartMode("commits")}
                   className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
                     chartMode === "commits"
@@ -150,6 +139,17 @@ export function HomeContent({
                   }`}
                 >
                   Commits
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartMode("loc")}
+                  className={`rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+                    chartMode === "loc"
+                      ? "bg-white text-black shadow-sm"
+                      : "text-neutral-500 hover:text-neutral-700"
+                  }`}
+                >
+                  Code Volume
                 </button>
               </div>
             )}

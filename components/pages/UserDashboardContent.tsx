@@ -74,7 +74,7 @@ interface GitHubRepo {
   pushed_at: string | null;
 }
 
-const chartModes = ["loc", "commits"] as const;
+const chartModes = ["commits", "loc"] as const;
 const repoSortModes = ["latest", "stars"] as const;
 
 export function UserDashboardContent({ owner }: { owner: string }) {
@@ -162,7 +162,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   const [chartMode, setChartMode] = useQueryState(
     "view",
-    parseAsStringLiteral(chartModes).withDefault("loc")
+    parseAsStringLiteral(chartModes).withDefault("commits")
   );
 
   // Resync: allows user to re-trigger analysis with latest classification
@@ -280,28 +280,97 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   );
 
   const repoPercentagesById = useMemo(() => {
-    if (!multiStats) return new Map<string, { humanPercentage: string; aiPercentage: string }>();
+    if (!multiStats)
+      return new Map<
+        string,
+        {
+          humanPercentage: string;
+          aiPercentage: string;
+          automationPercentage: string;
+          automationTools: string[];
+        }
+      >();
 
-    const totalsByRepo = new Map<string, { human: number; ai: number; total: number }>();
+    const totalsByRepo = new Map<
+      string,
+      {
+        human: number;
+        ai: number;
+        automation: number;
+        total: number;
+        dependabot: number;
+        renovate: number;
+        githubActions: number;
+        otherBot: number;
+      }
+    >();
     for (const stat of multiStats) {
-      const existing = totalsByRepo.get(stat.repoId) ?? { human: 0, ai: 0, total: 0 };
+      const existing = totalsByRepo.get(stat.repoId) ?? {
+        human: 0,
+        ai: 0,
+        automation: 0,
+        total: 0,
+        dependabot: 0,
+        renovate: 0,
+        githubActions: 0,
+        otherBot: 0,
+      };
 
-      // Keep semantics consistent with this page: AI tools only.
-      const aiCommits = stat.aiAssisted + stat.copilot + stat.claude + (stat.cursor ?? 0);
+      // 3-way split: human / AI tools / automation bots
+      const aiCommits =
+        stat.aiAssisted +
+        stat.copilot +
+        stat.claude +
+        (stat.cursor ?? 0) +
+        (stat.aider ?? 0) +
+        (stat.devin ?? 0) +
+        (stat.openaiCodex ?? 0) +
+        (stat.gemini ?? 0);
+      const automationCommits =
+        stat.dependabot + stat.renovate + stat.githubActions + stat.otherBot;
+
       existing.human += stat.human;
       existing.ai += aiCommits;
-      existing.total += stat.human + aiCommits;
+      existing.automation += automationCommits;
+      existing.total += stat.human + aiCommits + automationCommits;
+      existing.dependabot += stat.dependabot;
+      existing.renovate += stat.renovate;
+      existing.githubActions += stat.githubActions;
+      existing.otherBot += stat.otherBot;
 
       totalsByRepo.set(stat.repoId, existing);
     }
 
-    const percentagesByRepo = new Map<string, { humanPercentage: string; aiPercentage: string }>();
+    const percentagesByRepo = new Map<
+      string,
+      {
+        humanPercentage: string;
+        aiPercentage: string;
+        automationPercentage: string;
+        automationTools: string[];
+      }
+    >();
     for (const [repoId, totals] of totalsByRepo) {
       const humanPercentage =
         totals.total > 0 ? formatPercentage((totals.human / totals.total) * 100) : "0";
       const aiPercentage =
         totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0";
-      percentagesByRepo.set(repoId, { humanPercentage, aiPercentage });
+      const automationPercentage =
+        totals.total > 0 ? formatPercentage((totals.automation / totals.total) * 100) : "0";
+
+      // Build list of active automation tools
+      const automationTools: string[] = [];
+      if (totals.dependabot > 0) automationTools.push("Dependabot");
+      if (totals.renovate > 0) automationTools.push("Renovate");
+      if (totals.githubActions > 0) automationTools.push("GitHub Actions");
+      if (totals.otherBot > 0) automationTools.push("Other bots");
+
+      percentagesByRepo.set(repoId, {
+        humanPercentage,
+        aiPercentage,
+        automationPercentage,
+        automationTools,
+      });
     }
 
     return percentagesByRepo;
@@ -645,21 +714,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                 <div>
                   <h2 className="text-lg font-bold text-white">Public Activity Timeline</h2>
                   <p className="mt-1 text-xs text-neutral-500">
-                    Top 20 public repos you own. Code volume by default, automation bots excluded,
-                    UTC.
+                    Top 20 public repos you own. Commits by default, UTC.
                   </p>
                 </div>
                 {userSummary?.hasLocData && (
                   <div className="inline-flex rounded-lg border border-neutral-800 bg-black p-1">
-                    <button
-                      type="button"
-                      onClick={() => setChartMode("loc")}
-                      className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
-                        chartMode === "loc" ? "bg-white text-black" : "text-neutral-500"
-                      }`}
-                    >
-                      Code Volume
-                    </button>
                     <button
                       type="button"
                       onClick={() => setChartMode("commits")}
@@ -668,6 +727,15 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                       }`}
                     >
                       Commits
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setChartMode("loc")}
+                      className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
+                        chartMode === "loc" ? "bg-white text-black" : "text-neutral-500"
+                      }`}
+                    >
+                      Code Volume
                     </button>
                   </div>
                 )}
@@ -783,6 +851,8 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                                 <HumanAiBadges
                                   humanPercentage={repoPercentages.humanPercentage}
                                   aiPercentage={repoPercentages.aiPercentage}
+                                  automationPercentage={repoPercentages.automationPercentage}
+                                  automationTools={repoPercentages.automationTools}
                                 />
                               )}
                             </div>

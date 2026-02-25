@@ -2,7 +2,7 @@
 
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { Loader2, Star } from "lucide-react";
+import { ExternalLink, Loader2, Star } from "lucide-react";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useState } from "react";
 import { AIToolBreakdown } from "@/components/charts/AIToolBreakdown";
@@ -17,7 +17,7 @@ import { postJson } from "@/lib/postJson";
 import { getSyncStageLabel } from "@/lib/syncProgress";
 import { trackEvent } from "@/lib/tracking";
 
-const chartModes = ["loc", "commits"] as const;
+const chartModes = ["commits", "loc"] as const;
 const tabs = ["timeline", "contributors"] as const;
 
 interface RepoDashboardContentProps {
@@ -45,12 +45,13 @@ export function RepoDashboardContent({
   );
   const [chartMode, setChartMode] = useQueryState(
     "view",
-    parseAsStringLiteral(chartModes).withDefault("loc")
+    parseAsStringLiteral(chartModes).withDefault("commits")
   );
   const [requesting, setRequesting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
 
   const fullName = `${owner}/${repoName}`;
+  const githubRepoUrl = `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`;
 
   // Reactive queries with initial data fallback
   const repo = useQuery(api.queries.repos.getRepoBySlug, { owner, name: repoName }) ?? initialRepo;
@@ -99,6 +100,15 @@ export function RepoDashboardContent({
         <div className="mt-16 text-center">
           <h1 className="text-2xl font-bold">{fullName}</h1>
           <p className="mt-2 text-neutral-500">This repository hasn&apos;t been analyzed yet.</p>
+          <a
+            href={githubRepoUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm text-neutral-400 underline decoration-neutral-700 underline-offset-4 transition-colors hover:text-neutral-200"
+          >
+            View on GitHub
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
           <button
             type="button"
             onClick={handleAnalyze}
@@ -135,6 +145,15 @@ export function RepoDashboardContent({
             <p className="mt-1 text-neutral-500 max-w-3xl">{repo.description}</p>
           )}
         </div>
+        <a
+          href={githubRepoUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-2 self-start rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition-colors hover:bg-neutral-800"
+        >
+          View on GitHub
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
       </div>
 
       {/* Sync Progress Status Pill */}
@@ -240,17 +259,6 @@ export function RepoDashboardContent({
             <div className="inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
               <button
                 type="button"
-                onClick={() => setChartMode("loc")}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  chartMode === "loc"
-                    ? "bg-white text-black"
-                    : "text-neutral-400 hover:text-neutral-200"
-                }`}
-              >
-                Lines of Code
-              </button>
-              <button
-                type="button"
                 onClick={() => setChartMode("commits")}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   chartMode === "commits"
@@ -259,6 +267,17 @@ export function RepoDashboardContent({
                 }`}
               >
                 Commits
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode("loc")}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  chartMode === "loc"
+                    ? "bg-white text-black"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
+              >
+                Lines of Code
               </button>
             </div>
           )}

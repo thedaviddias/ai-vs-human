@@ -6,8 +6,10 @@ export interface DailyDataPoint {
   date: number; // epoch ms, midnight UTC
   human: number;
   ai: number;
+  automation?: number;
   humanAdditions: number;
   aiAdditions: number;
+  automationAdditions?: number;
 }
 
 interface ContributionHeatmapProps {
@@ -30,6 +32,7 @@ const MIN_WEEKS = 10;
 // Flat discrete colors — no more lerp or rgba complexity
 const COLORS_HUMAN = ["#064e3b", "#065f46", "#059669", "#10b981", "#34d399"]; // Emerald shades
 const COLORS_AI = ["#4c1d95", "#5b21b6", "#7c3aed", "#8b5cf6", "#a78bfa"]; // Violet shades
+const COLORS_AUTOMATION = ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b"]; // Amber shades
 
 const DAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", ""] as const;
 
@@ -50,14 +53,24 @@ const MONTH_NAMES = [
 
 /**
  * Simplified square color: purely discrete levels based on activity.
+ * Picks color family by dominant type (human / AI / automation).
  */
-function getSquareColor(human: number, ai: number, maxActivity: number): string | null {
-  const total = human + ai;
+function getSquareColor(
+  human: number,
+  ai: number,
+  automation: number,
+  maxActivity: number
+): string | null {
+  const total = human + ai + automation;
   if (total === 0) return null;
 
-  // Use the dominant type to pick the color family
-  const isAiDominant = ai > human;
-  const colorScale = isAiDominant ? COLORS_AI : COLORS_HUMAN;
+  // Pick color family by dominant type
+  let colorScale = COLORS_HUMAN;
+  if (ai >= human && ai >= automation) {
+    colorScale = COLORS_AI;
+  } else if (automation >= human && automation >= ai) {
+    colorScale = COLORS_AUTOMATION;
+  }
 
   // Discrete indexing (0-4) based on activity level
   const index = Math.min(4, Math.floor((total / maxActivity) * 5));
@@ -154,6 +167,7 @@ interface TooltipInfo {
   dateLabel: string;
   human: number;
   ai: number;
+  automation: number;
   total: number;
   aiPercentage: string;
 }
@@ -202,7 +216,9 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
     let max = 0;
     for (const point of data) {
       const val =
-        viewMode === "loc" ? point.humanAdditions + point.aiAdditions : point.human + point.ai;
+        viewMode === "loc"
+          ? point.humanAdditions + point.aiAdditions + (point.automationAdditions ?? 0)
+          : point.human + point.ai + (point.automation ?? 0);
       if (val > max) max = val;
     }
     return max;
@@ -211,8 +227,10 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
   // Detect if LOC view has suspiciously sparse data (possible enrichment gap)
   const locDataWarning = useMemo(() => {
     if (viewMode !== "loc" || data.length === 0) return false;
-    const withLoc = data.filter((d) => d.humanAdditions + d.aiAdditions > 0).length;
-    const withCommits = data.filter((d) => d.human + d.ai > 0).length;
+    const withLoc = data.filter(
+      (d) => d.humanAdditions + d.aiAdditions + (d.automationAdditions ?? 0) > 0
+    ).length;
+    const withCommits = data.filter((d) => d.human + d.ai + (d.automation ?? 0) > 0).length;
     // If most days have commits but few have LOC, enrichment may be incomplete
     return withCommits > 0 && withLoc / withCommits < 0.5;
   }, [data, viewMode]);
@@ -229,7 +247,9 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
       const rect = e.currentTarget.getBoundingClientRect();
       const human = viewMode === "loc" ? (cell.data?.humanAdditions ?? 0) : (cell.data?.human ?? 0);
       const ai = viewMode === "loc" ? (cell.data?.aiAdditions ?? 0) : (cell.data?.ai ?? 0);
-      const total = human + ai;
+      const automation =
+        viewMode === "loc" ? (cell.data?.automationAdditions ?? 0) : (cell.data?.automation ?? 0);
+      const total = human + ai + automation;
 
       setTooltip({
         x: rect.left + rect.width / 2,
@@ -237,6 +257,7 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
         dateLabel: formatDate(cell.date),
         human,
         ai,
+        automation,
         total,
         aiPercentage: total > 0 ? ((ai / total) * 100).toFixed(0) : "0",
       });
@@ -258,7 +279,7 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
           className="block w-full"
           style={{ aspectRatio: `${svgWidth} / ${svgHeight}` }}
           role="img"
-          aria-label="Contribution heatmap showing human vs AI activity"
+          aria-label="Contribution heatmap showing human vs AI vs automation activity"
         >
           {/* Month labels along top */}
           {monthLabels.map(({ label, col }) => (
@@ -292,7 +313,11 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
             const human =
               viewMode === "loc" ? (cell.data?.humanAdditions ?? 0) : (cell.data?.human ?? 0);
             const ai = viewMode === "loc" ? (cell.data?.aiAdditions ?? 0) : (cell.data?.ai ?? 0);
-            const color = getSquareColor(human, ai, maxActivity);
+            const automation =
+              viewMode === "loc"
+                ? (cell.data?.automationAdditions ?? 0)
+                : (cell.data?.automation ?? 0);
+            const color = getSquareColor(human, ai, automation, maxActivity);
 
             return (
               // biome-ignore lint/a11y/noStaticElementInteractions: SVG rect hover is for tooltip progressive enhancement; parent svg has role="img" + aria-label
@@ -334,9 +359,7 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
       {/* Legend — simplified discrete boxes */}
       <div className="mt-4 flex flex-col items-start gap-3 text-[11px] text-neutral-500 sm:flex-row sm:items-center sm:justify-between border-t border-neutral-800 pt-4">
         <div>
-          <span>
-            {viewMode === "loc" ? "Code added per day" : "Commits per day"} — bots excluded, UTC
-          </span>
+          <span>{viewMode === "loc" ? "Code added per day" : "Commits per day"} — UTC</span>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
@@ -355,6 +378,14 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
               ))}
             </div>
             <span>(AI)</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-neutral-800 pl-4">
+            <div className="flex gap-1">
+              {COLORS_AUTOMATION.map((c) => (
+                <div key={c} className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: c }} />
+              ))}
+            </div>
+            <span>(Automation)</span>
           </div>
         </div>
       </div>
@@ -378,6 +409,10 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
             </span>
             <span>
               <span className="text-purple-500">{tooltip.ai.toLocaleString()}</span> AI
+            </span>
+            <span>
+              <span className="text-amber-500">{tooltip.automation.toLocaleString()}</span>{" "}
+              automation
             </span>
             {tooltip.total > 0 && (
               <span className="text-neutral-400">({tooltip.aiPercentage}% AI)</span>
