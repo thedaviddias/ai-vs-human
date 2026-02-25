@@ -8,6 +8,8 @@ interface OwnerAggregate {
   humanCommits: number;
   botCommits: number;
   totalCommits: number;
+  humanAdditions: number;
+  aiAdditions: number;
   lastIndexedAt: number;
   isSyncing: boolean;
 }
@@ -41,6 +43,8 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         humanCommits: 0,
         botCommits: 0,
         totalCommits: 0,
+        humanAdditions: 0,
+        aiAdditions: 0,
         lastIndexedAt: repo.requestedAt,
         isSyncing: isRepoSyncing,
       });
@@ -58,13 +62,35 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
 
     let repoHumanCommits = 0;
     let repoBotCommits = 0;
+    let repoHumanAdditions = 0;
+    let repoAiAdditions = 0;
 
     for (const week of weeklyStats) {
       repoHumanCommits += week.human;
       // Only count AI coding tools, NOT automation bots (dependabot, renovate,
       // githubActions, otherBot). This matches the dashboard methodology so
       // percentages are consistent across cards and detail pages.
-      repoBotCommits += week.copilot + week.claude + (week.cursor ?? 0) + week.aiAssisted;
+      repoBotCommits +=
+        week.copilot +
+        week.claude +
+        (week.cursor ?? 0) +
+        week.aiAssisted +
+        (week.aider ?? 0) +
+        (week.devin ?? 0) +
+        (week.openaiCodex ?? 0) +
+        (week.gemini ?? 0);
+
+      // LOC (additions) per classification
+      repoHumanAdditions += week.humanAdditions ?? 0;
+      repoAiAdditions +=
+        (week.copilotAdditions ?? 0) +
+        (week.claudeAdditions ?? 0) +
+        (week.cursorAdditions ?? 0) +
+        (week.aiAssistedAdditions ?? 0) +
+        (week.aiderAdditions ?? 0) +
+        (week.devinAdditions ?? 0) +
+        (week.openaiCodexAdditions ?? 0) +
+        (week.geminiAdditions ?? 0);
     }
 
     const repoTotalCommits = repoHumanCommits + repoBotCommits;
@@ -75,29 +101,40 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
     existing.humanCommits += repoHumanCommits;
     existing.botCommits += repoBotCommits;
     existing.totalCommits += repoTotalCommits;
+    existing.humanAdditions += repoHumanAdditions;
+    existing.aiAdditions += repoAiAdditions;
     existing.lastIndexedAt = Math.max(existing.lastIndexedAt, repoLastIndexedAt);
   }
 
   return Array.from(owners.values())
     .filter((owner) => owner.repoCount > 0) // Only show users who have at least one synced repo
-    .map((owner) => ({
-      owner: owner.owner,
-      avatarUrl: `https://github.com/${owner.owner}.png?size=96`,
-      repoCount: owner.repoCount,
-      totalCommits: owner.totalCommits,
-      humanCommits: owner.humanCommits,
-      botCommits: owner.botCommits,
-      lastIndexedAt: owner.lastIndexedAt,
-      isSyncing: owner.isSyncing,
-      humanPercentage:
-        owner.totalCommits > 0
-          ? formatPercentage((owner.humanCommits / owner.totalCommits) * 100)
-          : "0",
-      botPercentage:
-        owner.totalCommits > 0
-          ? formatPercentage((owner.botCommits / owner.totalCommits) * 100)
-          : "0",
-    }))
+    .map((owner) => {
+      // Use LOC-based percentages as primary (matches dashboard's StatsSummary),
+      // falling back to commit-based when LOC data isn't available yet.
+      const locTotal = owner.humanAdditions + owner.aiAdditions;
+      const hasLocData = locTotal > 0;
+
+      return {
+        owner: owner.owner,
+        avatarUrl: `https://github.com/${owner.owner}.png?size=96`,
+        repoCount: owner.repoCount,
+        totalCommits: owner.totalCommits,
+        humanCommits: owner.humanCommits,
+        botCommits: owner.botCommits,
+        lastIndexedAt: owner.lastIndexedAt,
+        isSyncing: owner.isSyncing,
+        humanPercentage: hasLocData
+          ? formatPercentage((owner.humanAdditions / locTotal) * 100)
+          : owner.totalCommits > 0
+            ? formatPercentage((owner.humanCommits / owner.totalCommits) * 100)
+            : "0",
+        botPercentage: hasLocData
+          ? formatPercentage((owner.aiAdditions / locTotal) * 100)
+          : owner.totalCommits > 0
+            ? formatPercentage((owner.botCommits / owner.totalCommits) * 100)
+            : "0",
+      };
+    })
     .sort(
       (a, b) =>
         b.lastIndexedAt - a.lastIndexedAt ||
@@ -183,7 +220,15 @@ export const getUserByOwner = query({
       for (const week of weeklyStats) {
         // Commits (AI tools only, exclude automation bots)
         humanCommits += week.human;
-        aiCommits += week.copilot + week.claude + (week.cursor ?? 0) + week.aiAssisted;
+        aiCommits +=
+          week.copilot +
+          week.claude +
+          (week.cursor ?? 0) +
+          week.aiAssisted +
+          (week.aider ?? 0) +
+          (week.devin ?? 0) +
+          (week.openaiCodex ?? 0) +
+          (week.gemini ?? 0);
 
         // LOC
         humanAdditions += week.humanAdditions ?? 0;
@@ -191,7 +236,11 @@ export const getUserByOwner = query({
           (week.copilotAdditions ?? 0) +
           (week.claudeAdditions ?? 0) +
           (week.cursorAdditions ?? 0) +
-          (week.aiAssistedAdditions ?? 0);
+          (week.aiAssistedAdditions ?? 0) +
+          (week.aiderAdditions ?? 0) +
+          (week.devinAdditions ?? 0) +
+          (week.openaiCodexAdditions ?? 0) +
+          (week.geminiAdditions ?? 0);
       }
     }
 
