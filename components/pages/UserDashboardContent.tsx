@@ -275,7 +275,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   const relatedUsers = useQuery(api.queries.users.getRelatedRecentUsers, {
     owner,
-    limit: 3,
+    limit: 6,
   });
 
   const isAnySyncing = useMemo(() => {
