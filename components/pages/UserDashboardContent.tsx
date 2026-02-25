@@ -506,7 +506,13 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             {/* Heatmap */}
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
-                <h2 className="text-lg font-bold text-white">Activity Timeline</h2>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Public Activity Timeline</h2>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Top 20 public repos you own. Code volume by default, automation bots excluded,
+                    UTC.
+                  </p>
+                </div>
                 {userSummary?.hasLocData && (
                   <div className="inline-flex rounded-lg border border-neutral-800 bg-black p-1">
                     <button

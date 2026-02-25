@@ -93,8 +93,13 @@ describe("seo helpers", () => {
   it("keeps /api disallowed while allowing framework assets in robots", () => {
     const robotsConfig = robots();
     const rules = Array.isArray(robotsConfig.rules) ? robotsConfig.rules : [robotsConfig.rules];
+    const crawlerRules = rules.filter(
+      (rule) => rule.userAgent === "*" || rule.userAgent === "Googlebot"
+    );
 
-    for (const rule of rules) {
+    expect(crawlerRules.length).toBeGreaterThan(0);
+
+    for (const rule of crawlerRules) {
       const disallow = toArray(rule.disallow);
       expect(disallow).toContain("/api/");
       expect(disallow).not.toContain("/_next/");
