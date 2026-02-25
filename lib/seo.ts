@@ -7,6 +7,7 @@ const SEO_CONFIG = {
   authorUrl: "https://thedaviddias.com",
   xHandle: "@thedaviddias",
   defaultOGImage: "/api/og/global",
+  ogImageVersion: "1", // bump to force Twitter/X card image cache refresh
 } as const;
 
 export const DEFAULT_KEYWORDS: string[] = [
@@ -25,6 +26,7 @@ interface MetadataConfig {
   description: string;
   socialTitle?: string;
   socialDescription?: string;
+  twitterTitle?: string;
   path?: string;
   keywords?: string[];
   ogImage?: string;
@@ -56,12 +58,19 @@ function toAbsoluteUrl(url: string): string {
   return canonicalUrl(url);
 }
 
+/** Append a cache-busting version param to an image URL for Twitter/X. */
+function withImageVersion(imageUrl: string): string {
+  const separator = imageUrl.includes("?") ? "&" : "?";
+  return `${imageUrl}${separator}v=${SEO_CONFIG.ogImageVersion}`;
+}
+
 export function createMetadata(config: MetadataConfig): Metadata {
   const {
     title,
     description,
     socialTitle: socialTitleOverride,
     socialDescription: socialDescriptionOverride,
+    twitterTitle: twitterTitleOverride,
     path = "/",
     keywords = [],
     ogImage = SEO_CONFIG.defaultOGImage,
@@ -107,10 +116,18 @@ export function createMetadata(config: MetadataConfig): Metadata {
     twitter: {
       card: "summary_large_image",
       site: SEO_CONFIG.xHandle,
-      title: socialTitle,
+      title: twitterTitleOverride ?? socialTitle,
       description: socialDescription,
       creator: SEO_CONFIG.xHandle,
-      images: [{ url: image, type: "image/png", width: 1200, height: 630, alt: ogImageAlt }],
+      images: [
+        {
+          url: withImageVersion(image),
+          type: "image/png",
+          width: 1200,
+          height: 630,
+          alt: ogImageAlt,
+        },
+      ],
     },
   };
 
@@ -171,7 +188,7 @@ export const rootMetadata: Metadata = {
     creator: SEO_CONFIG.xHandle,
     images: [
       {
-        url: toAbsoluteUrl(SEO_CONFIG.defaultOGImage),
+        url: withImageVersion(toAbsoluteUrl(SEO_CONFIG.defaultOGImage)),
         type: "image/png",
         width: 1200,
         height: 630,

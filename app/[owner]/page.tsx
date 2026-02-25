@@ -11,8 +11,10 @@ export async function generateMetadata({
   const encodedOwner = encodeURIComponent(owner);
 
   return createMetadata({
-    title: `@${owner}`,
+    title: `@${owner} - AI vs Human`,
     noSuffix: true,
+    socialTitle: `@${owner} | AI vs Human`,
+    twitterTitle: `@${owner} - aivshuman.thedaviddias.com`,
     description: `Analyze ${owner}'s open-source contribution mix across top repositories, with human vs AI commit and code volume breakdowns.`,
     path: `/${encodedOwner}`,
     ogImage: `/api/og/user?owner=${encodedOwner}`,
