@@ -106,10 +106,11 @@ export function createMetadata(config: MetadataConfig): Metadata {
     },
     twitter: {
       card: "summary_large_image",
+      site: SEO_CONFIG.xHandle,
       title: socialTitle,
       description: socialDescription,
       creator: SEO_CONFIG.xHandle,
-      images: [{ url: image, type: "image/png", alt: ogImageAlt }],
+      images: [{ url: image, type: "image/png", width: 1200, height: 630, alt: ogImageAlt }],
     },
   };
 
@@ -163,6 +164,7 @@ export const rootMetadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+    site: SEO_CONFIG.xHandle,
     title: siteConfig.name,
     description:
       "Visualize how much of open source is written by AI vs humans. Analyze any GitHub repo to see commit breakdowns by Claude, Copilot, Dependabot, and more.",
@@ -171,6 +173,8 @@ export const rootMetadata: Metadata = {
       {
         url: toAbsoluteUrl(SEO_CONFIG.defaultOGImage),
         type: "image/png",
+        width: 1200,
+        height: 630,
         alt: `${siteConfig.name} preview`,
       },
     ],
