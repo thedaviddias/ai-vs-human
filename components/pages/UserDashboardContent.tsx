@@ -1,11 +1,11 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { CheckCircle2, Clock, Loader2, RefreshCw, Star, XCircle } from "lucide-react";
+import { Bell, CheckCircle2, Clock, Loader2, RefreshCw, Star, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HumanAiBadges } from "@/components/badges/HumanAiBadges";
 import { UserCard } from "@/components/cards/UserCard";
 import { ContributionHeatmap } from "@/components/charts/ContributionHeatmap";
@@ -14,8 +14,10 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { ShareButtons } from "@/components/sharing/ShareButtons";
 import { OwnerPageSkeleton } from "@/components/skeletons/PageSkeletons";
+import { NotificationModal } from "@/components/ui/NotificationModal";
 import { api } from "@/convex/_generated/api";
 import { aggregateMultiRepoStats, computeUserSummary } from "@/lib/aggregateUserStats";
+import { useSound } from "@/lib/hooks/useSound";
 import { logger } from "@/lib/logger";
 import { postJson } from "@/lib/postJson";
 import { getSyncBadgeLabel, getSyncStageLabel } from "@/lib/syncProgress";
@@ -347,6 +349,39 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   const isSyncInProgress = (githubRepos.length > 0 && isAnySyncing) || isFirstIngestion;
 
+  // Notification logic
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [wantsNotification, setWantsNotification] = useState(false);
+  const prevSyncingRef = useRef(isSyncInProgress);
+  const { playSuccess } = useSound();
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isSyncInProgress) {
+      timer = setTimeout(() => {
+        setShowNotificationPrompt(true);
+      }, 20000); // 20 seconds
+    } else {
+      setShowNotificationPrompt(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isSyncInProgress]);
+
+  useEffect(() => {
+    if (prevSyncingRef.current && !isSyncInProgress && wantsNotification) {
+      if (Notification.permission === "granted") {
+        new Notification("Analysis Ready! 🚀", {
+          body: `@${owner}'s contribution breakdown is now available.`,
+          icon: "/icon.png",
+        });
+        playSuccess();
+      }
+      setWantsNotification(false);
+    }
+    prevSyncingRef.current = isSyncInProgress;
+  }, [isSyncInProgress, wantsNotification, owner, playSuccess]);
+
   const funMessage = useFunSyncMessage(isSyncInProgress);
 
   const repoGroups = useMemo(() => {
@@ -537,8 +572,32 @@ export function UserDashboardContent({ owner }: { owner: string }) {
           <div className="mt-1 text-[11px] italic text-neutral-500 transition-opacity duration-500">
             {funMessage}
           </div>
+
+          {showNotificationPrompt && !wantsNotification && (
+            <button
+              type="button"
+              onClick={() => setIsNotificationModalOpen(true)}
+              className="mt-4 flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900/50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-400 transition-all hover:bg-neutral-800 hover:text-white"
+            >
+              <Bell className="h-3 w-3" />
+              Taking a while? Notify me when done
+            </button>
+          )}
+
+          {wantsNotification && (
+            <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-green-500/80">
+              <Bell className="h-3 w-3 animate-pulse" />
+              We&apos;ll notify you once finished
+            </div>
+          )}
         </div>
       )}
+
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        onConfirm={() => setWantsNotification(true)}
+      />
 
       {/* Main Insights Card */}
       <div
