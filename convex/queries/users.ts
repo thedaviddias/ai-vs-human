@@ -11,6 +11,15 @@ interface OwnerAggregate {
   lastIndexedAt: number;
 }
 
+function formatPercentage(value: number): string {
+  if (value === 0) return "0";
+  if (value < 0.1) {
+    const formatted = value.toFixed(2);
+    return formatted.endsWith("0") ? value.toFixed(1) : formatted;
+  }
+  return value.toFixed(1);
+}
+
 async function getIndexedUsersHelper(ctx: QueryCtx) {
   const syncedRepos = await ctx.db
     .query("repos")
@@ -73,9 +82,13 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
       botCommits: owner.botCommits,
       lastIndexedAt: owner.lastIndexedAt,
       humanPercentage:
-        owner.totalCommits > 0 ? ((owner.humanCommits / owner.totalCommits) * 100).toFixed(1) : "0",
+        owner.totalCommits > 0
+          ? formatPercentage((owner.humanCommits / owner.totalCommits) * 100)
+          : "0",
       botPercentage:
-        owner.totalCommits > 0 ? ((owner.botCommits / owner.totalCommits) * 100).toFixed(1) : "0",
+        owner.totalCommits > 0
+          ? formatPercentage((owner.botCommits / owner.totalCommits) * 100)
+          : "0",
     }))
     .sort(
       (a, b) =>
@@ -219,12 +232,13 @@ export const getUserByOwner = query({
       totalCommits,
       totalAdditions,
       repoCount: syncedRepoIds.length,
-      humanPercentage: totalCommits > 0 ? ((humanCommits / totalCommits) * 100).toFixed(1) : "0",
-      aiPercentage: totalCommits > 0 ? ((aiCommits / totalCommits) * 100).toFixed(1) : "0",
+      humanPercentage:
+        totalCommits > 0 ? formatPercentage((humanCommits / totalCommits) * 100) : "0",
+      aiPercentage: totalCommits > 0 ? formatPercentage((aiCommits / totalCommits) * 100) : "0",
       locHumanPercentage:
-        totalAdditions > 0 ? ((humanAdditions / totalAdditions) * 100).toFixed(1) : null,
+        totalAdditions > 0 ? formatPercentage((humanAdditions / totalAdditions) * 100) : null,
       locAiPercentage:
-        totalAdditions > 0 ? ((aiAdditions / totalAdditions) * 100).toFixed(1) : null,
+        totalAdditions > 0 ? formatPercentage((aiAdditions / totalAdditions) * 100) : null,
       dailyData,
     };
   },

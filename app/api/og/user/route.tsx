@@ -66,14 +66,26 @@ export async function GET(request: Request) {
 
     const displayName = githubUser?.name || user.owner;
 
+    // Accuracy helper: Ensure small non-zero values are not rounded to 0.0%
+    const formatPct = (val: string | null | undefined) => {
+      if (!val) return "0";
+      const num = Number.parseFloat(val);
+      if (num === 0) return "0";
+      if (num < 0.1) {
+        const formatted = num.toFixed(2);
+        return formatted.endsWith("0") ? num.toFixed(1) : formatted;
+      }
+      return num.toFixed(1);
+    };
+
     // Use LOC percentages if available, otherwise commits
-    const humanDisplayPercentage = user.locHumanPercentage ?? user.humanPercentage;
-    const aiDisplayPercentage = user.locAiPercentage ?? user.aiPercentage;
+    const humanDisplayPercentage = formatPct(user.locHumanPercentage ?? user.humanPercentage);
+    const aiDisplayPercentage = formatPct(user.locAiPercentage ?? user.aiPercentage);
     const percentageLabel = user.locHumanPercentage ? "HUMAN" : "HUMAN";
     const aiLabel = user.locHumanPercentage ? "AI/BOT" : "AI/BOT";
 
     // Calculate Rank
-    const humanPct = Number.parseFloat(humanDisplayPercentage);
+    const humanPct = Number.parseFloat(user.locHumanPercentage ?? user.humanPercentage);
     const rank = getRank(humanPct);
 
     // Process heatmap data
@@ -118,7 +130,7 @@ export async function GET(request: Request) {
           width: "100%",
           display: "flex",
           flexDirection: "column",
-          backgroundColor: "#050505",
+          backgroundColor: "#0a0a0a",
           padding: "32px 48px",
           color: "white",
         }}
@@ -142,7 +154,7 @@ export async function GET(request: Request) {
                 width: "100px",
                 height: "100px",
                 borderRadius: "50%",
-                border: "2px solid #1a1a1a",
+                border: "2px solid #333",
               }}
             />
             <div style={{ display: "flex", flexDirection: "column" }}>
@@ -158,7 +170,7 @@ export async function GET(request: Request) {
                 @{user.owner.toLowerCase()}
               </div>
               <div
-                style={{ display: "flex", fontSize: "32px", color: "#737373", marginTop: "2px" }}
+                style={{ display: "flex", fontSize: "32px", color: "#a3a3a3", marginTop: "2px" }}
               >
                 {displayName}
               </div>
@@ -172,10 +184,10 @@ export async function GET(request: Request) {
               flexDirection: "row",
               alignItems: "center",
               gap: "16px",
-              backgroundColor: "#111",
+              backgroundColor: "#171717",
               padding: "16px 32px",
               borderRadius: "100px",
-              border: "1px solid #333",
+              border: "1px solid #404040",
             }}
           >
             <div style={{ display: "flex", fontSize: "42px" }}>{rank.icon}</div>
@@ -198,9 +210,9 @@ export async function GET(request: Request) {
           style={{
             display: "flex",
             flexDirection: "column",
-            backgroundColor: "#0a0a0a",
+            backgroundColor: "#171717",
             borderRadius: "24px",
-            border: "1px solid #1a1a1a",
+            border: "1px solid #333",
             padding: "32px 48px",
             flex: 1,
             position: "relative",
@@ -233,7 +245,7 @@ export async function GET(request: Request) {
                   display: "flex",
                   fontSize: "24px",
                   fontWeight: "bold",
-                  color: "#525252",
+                  color: "#a3a3a3",
                   textTransform: "uppercase",
                   letterSpacing: "0.1em",
                   marginTop: "8px",
@@ -260,7 +272,7 @@ export async function GET(request: Request) {
                   style={{
                     display: "flex",
                     fontSize: "24px",
-                    color: "#525252",
+                    color: "#a3a3a3",
                     fontWeight: "bold",
                     marginTop: "8px",
                   }}
@@ -284,7 +296,7 @@ export async function GET(request: Request) {
                   style={{
                     display: "flex",
                     fontSize: "24px",
-                    color: "#525252",
+                    color: "#a3a3a3",
                     fontWeight: "bold",
                     marginTop: "8px",
                   }}
@@ -325,7 +337,7 @@ export async function GET(request: Request) {
                           width: `${CELL_SIZE}px`,
                           height: `${CELL_SIZE}px`,
                           borderRadius: "2px",
-                          backgroundColor: color || "#121212",
+                          backgroundColor: color || "#262626",
                         }}
                       />
                     );
@@ -343,7 +355,7 @@ export async function GET(request: Request) {
             flexDirection: "row",
             justifyContent: "center",
             marginTop: "24px",
-            color: "#404040",
+            color: "#737373",
             fontSize: "20px",
             fontWeight: "bold",
           }}

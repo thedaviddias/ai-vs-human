@@ -17,6 +17,8 @@ export async function generateMetadata({
   return createMetadata({
     title: fullName,
     noSuffix: true,
+    socialTitle: "",
+    socialDescription: "",
     description: `See how much of ${fullName} is authored by humans versus AI coding tools, with commit and code volume breakdowns.`,
     path: `/${encodedOwner}/${encodedRepo}`,
     ogImage: `/api/og/repo?owner=${encodedOwner}&name=${encodedRepo}`,

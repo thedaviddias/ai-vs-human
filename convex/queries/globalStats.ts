@@ -1,5 +1,14 @@
 import { query } from "../_generated/server";
 
+function formatPercentage(value: number): string {
+  if (value === 0) return "0";
+  if (value < 0.1) {
+    const formatted = value.toFixed(2);
+    return formatted.endsWith("0") ? value.toFixed(1) : formatted;
+  }
+  return value.toFixed(1);
+}
+
 export const getGlobalWeeklyStats = query({
   args: {},
   handler: async (ctx) => {
@@ -104,14 +113,17 @@ export const getGlobalSummary = query({
     return {
       totals,
       repoCount: repoCount.length,
-      botPercentage: totals.total > 0 ? ((totals.ai / totals.total) * 100).toFixed(1) : "0",
-      humanPercentage: totals.total > 0 ? ((totals.human / totals.total) * 100).toFixed(1) : "0",
+      botPercentage: totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0",
+      humanPercentage:
+        totals.total > 0 ? formatPercentage((totals.human / totals.total) * 100) : "0",
       trend: Math.round(trend),
       // LOC metrics — null when data not yet available
       locTotals,
-      locBotPercentage: hasLocData ? ((locTotals.aiAdditions / locTotal) * 100).toFixed(1) : null,
+      locBotPercentage: hasLocData
+        ? formatPercentage((locTotals.aiAdditions / locTotal) * 100)
+        : null,
       locHumanPercentage: hasLocData
-        ? ((locTotals.humanAdditions / locTotal) * 100).toFixed(1)
+        ? formatPercentage((locTotals.humanAdditions / locTotal) * 100)
         : null,
       hasLocData,
     };

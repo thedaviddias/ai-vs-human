@@ -21,7 +21,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ own
       : Number.parseFloat(user.humanPercentage);
 
     const isHumanDominant = humanPct >= 50;
-    const percentage = isHumanDominant ? humanPct : (100 - humanPct).toFixed(1);
+    const val = isHumanDominant ? humanPct : 100 - humanPct;
+
+    // Accurate formatting for small values
+    const formatPct = (num: number) => {
+      if (num === 0) return "0";
+      if (num < 0.1) {
+        const formatted = num.toFixed(2);
+        return formatted.endsWith("0") ? num.toFixed(1) : formatted;
+      }
+      return num.toFixed(1);
+    };
+
+    const percentage = formatPct(val);
     const label = isHumanDominant ? "Human" : "AI";
     const color = isHumanDominant ? "#4ade80" : "#a78bfa"; // green-400 : purple-400
     const message = `${percentage}% ${label}`;

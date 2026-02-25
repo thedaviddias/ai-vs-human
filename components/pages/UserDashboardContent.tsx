@@ -19,6 +19,7 @@ import { logger } from "@/lib/logger";
 import { postJson } from "@/lib/postJson";
 import { getSyncBadgeLabel, getSyncStageLabel } from "@/lib/syncProgress";
 import { trackEvent } from "@/lib/tracking";
+import { formatPercentage } from "@/lib/utils";
 
 interface GitHubRepo {
   id: number;
@@ -215,8 +216,9 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     const percentagesByRepo = new Map<string, { humanPercentage: string; aiPercentage: string }>();
     for (const [repoId, totals] of totalsByRepo) {
       const humanPercentage =
-        totals.total > 0 ? ((totals.human / totals.total) * 100).toFixed(1) : "0";
-      const aiPercentage = totals.total > 0 ? ((totals.ai / totals.total) * 100).toFixed(1) : "0";
+        totals.total > 0 ? formatPercentage((totals.human / totals.total) * 100) : "0";
+      const aiPercentage =
+        totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0";
       percentagesByRepo.set(repoId, { humanPercentage, aiPercentage });
     }
 

@@ -23,6 +23,8 @@ export const DEFAULT_KEYWORDS: string[] = [
 interface MetadataConfig {
   title: string;
   description: string;
+  socialTitle?: string;
+  socialDescription?: string;
   path?: string;
   keywords?: string[];
   ogImage?: string;
@@ -33,6 +35,7 @@ interface MetadataConfig {
 }
 
 export function formatTitle(title: string, noSuffix = false): string {
+  if (!title) return "";
   if (noSuffix || title === siteConfig.name) {
     return title;
   }
@@ -57,16 +60,22 @@ export function createMetadata(config: MetadataConfig): Metadata {
   const {
     title,
     description,
+    socialTitle: socialTitleOverride,
+    socialDescription: socialDescriptionOverride,
     path = "/",
     keywords = [],
     ogImage = SEO_CONFIG.defaultOGImage,
-    ogImageAlt = `${title} - ${siteConfig.name}`,
+    ogImageAlt = `${title || siteConfig.name} - ${siteConfig.name}`,
     ogType = "website",
     noSuffix = false,
     noIndex = false,
   } = config;
 
-  const socialTitle = formatTitle(title, noSuffix);
+  const socialTitle =
+    socialTitleOverride !== undefined ? socialTitleOverride : formatTitle(title, noSuffix);
+  const socialDescription =
+    socialDescriptionOverride !== undefined ? socialDescriptionOverride : description;
+
   const url = canonicalUrl(path);
   const image = toAbsoluteUrl(ogImage);
   const allKeywords = [...new Set([...DEFAULT_KEYWORDS, ...keywords])];
@@ -80,7 +89,7 @@ export function createMetadata(config: MetadataConfig): Metadata {
     },
     openGraph: {
       title: socialTitle,
-      description,
+      description: socialDescription,
       url,
       siteName: siteConfig.name,
       type: ogType,
@@ -97,7 +106,7 @@ export function createMetadata(config: MetadataConfig): Metadata {
     twitter: {
       card: "summary_large_image",
       title: socialTitle,
-      description,
+      description: socialDescription,
       creator: SEO_CONFIG.xHandle,
       images: [image],
     },

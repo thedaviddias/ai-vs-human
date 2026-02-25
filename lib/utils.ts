@@ -57,3 +57,19 @@ export function formatWeekLabel(weekStartMs: number): string {
 
   return `${isoYear}-W${String(week).padStart(2, "0")}`;
 }
+
+/**
+ * Formats a percentage value (0-100) to a string.
+ * - If 0, returns "0"
+ * - If > 0 and < 0.1, returns with up to 2 decimal places (e.g. 0.04)
+ * - Otherwise, returns with 1 decimal place (e.g. 85.5)
+ */
+export function formatPercentage(value: number): string {
+  if (value === 0) return "0";
+  if (value < 0.1) {
+    // For very small numbers, show up to 2 decimals but avoid trailing zeros
+    const formatted = value.toFixed(2);
+    return formatted.endsWith("0") ? value.toFixed(1) : formatted;
+  }
+  return value.toFixed(1);
+}
