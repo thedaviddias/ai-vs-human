@@ -13,6 +13,7 @@ type TrackingEvents = {
   search: { query: string };
   analyze_repo: { owner: string; repo: string };
   resync: { owner: string };
+  resync_repo: { owner: string; repo: string };
   // Sharing
   copy_card: { label: string; type: "user" | "repo" };
   post_to_x: { label: string; type: "user" | "repo" };

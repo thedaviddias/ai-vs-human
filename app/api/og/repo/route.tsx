@@ -12,12 +12,19 @@ const WEEKS_TO_SHOW = 52; // Full year
 
 const COLORS_HUMAN = ["#064e3b", "#065f46", "#059669", "#10b981", "#34d399"];
 const COLORS_AI = ["#4c1d95", "#5b21b6", "#7c3aed", "#8b5cf6", "#a78bfa"];
+const COLORS_AUTOMATION = ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b"];
 
-function getSquareColor(human: number, ai: number, maxActivity: number): string | null {
-  const total = human + ai;
+function getSquareColor(
+  human: number,
+  ai: number,
+  automation: number,
+  maxActivity: number
+): string | null {
+  const total = human + ai + automation;
   if (total === 0) return null;
-  const isAiDominant = ai > human;
-  const colorScale = isAiDominant ? COLORS_AI : COLORS_HUMAN;
+  let colorScale = COLORS_HUMAN;
+  if (ai >= human && ai >= automation) colorScale = COLORS_AI;
+  else if (automation >= human && automation >= ai) colorScale = COLORS_AUTOMATION;
   const index = Math.min(4, Math.floor((total / maxActivity) * 5));
   return colorScale[index];
 }
@@ -61,18 +68,17 @@ export async function GET(request: Request) {
       );
     }
 
-    // Use LOC percentages if available, otherwise commits
-    const humanDisplayPercentage = summary.locHumanPercentage ?? summary.humanPercentage;
-    const aiDisplayPercentage = summary.locAiPercentage ?? summary.aiPercentage;
-    const percentageLabel = summary.locHumanPercentage ? "HUMAN" : "HUMAN";
-    const aiLabel = summary.locHumanPercentage ? "AI/BOT" : "AI/BOT";
+    // Always use commit-based percentages on OG images
+    const humanDisplayPercentage = summary.humanPercentage;
+    const aiDisplayPercentage = summary.aiPercentage;
+    const automationDisplayPercentage = summary.automationPercentage;
 
     // Process heatmap data
     const dataMap = new Map();
     let maxActivity = 0;
     for (const p of dailyData) {
       dataMap.set(p.date, p);
-      const total = p.human + p.ai;
+      const total = p.human + p.ai + (p.automation ?? 0);
       if (total > maxActivity) maxActivity = total;
     }
 
@@ -82,7 +88,7 @@ export async function GET(request: Request) {
     const totalDays = WEEKS_TO_SHOW * 7 + todayDow + 1;
     const startDate = new Date(today.getTime() - (totalDays - 1) * 86_400_000);
 
-    const cells: ({ human: number; ai: number } | null)[][] = Array.from(
+    const cells: ({ human: number; ai: number; automation: number } | null)[][] = Array.from(
       { length: WEEKS_TO_SHOW + 1 },
       () => Array.from({ length: 7 }, () => null)
     );
@@ -92,7 +98,7 @@ export async function GET(request: Request) {
       const dow = (cellDate.getUTCDay() + 6) % 7;
       const col = Math.floor(i / 7);
       if (col <= WEEKS_TO_SHOW) {
-        cells[col][dow] = dataMap.get(cellDate.getTime()) || { human: 0, ai: 0 };
+        cells[col][dow] = dataMap.get(cellDate.getTime()) || { human: 0, ai: 0, automation: 0 };
       }
     }
 
@@ -260,12 +266,12 @@ export async function GET(request: Request) {
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "row", gap: "40px" }}>
+            <div style={{ display: "flex", flexDirection: "row", gap: "32px" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <div
                   style={{
                     display: "flex",
-                    fontSize: "64px",
+                    fontSize: "52px",
                     fontWeight: "bold",
                     color: "#4ade80",
                     lineHeight: 1,
@@ -276,20 +282,20 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     display: "flex",
-                    fontSize: "24px",
+                    fontSize: "20px",
                     color: "#525252",
                     fontWeight: "bold",
                     marginTop: "8px",
                   }}
                 >
-                  {percentageLabel}
+                  HUMAN
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                 <div
                   style={{
                     display: "flex",
-                    fontSize: "64px",
+                    fontSize: "52px",
                     fontWeight: "bold",
                     color: "#a78bfa",
                     lineHeight: 1,
@@ -300,13 +306,37 @@ export async function GET(request: Request) {
                 <div
                   style={{
                     display: "flex",
-                    fontSize: "24px",
+                    fontSize: "20px",
                     color: "#525252",
                     fontWeight: "bold",
                     marginTop: "8px",
                   }}
                 >
-                  {aiLabel}
+                  AI
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: "52px",
+                    fontWeight: "bold",
+                    color: "#f59e0b",
+                    lineHeight: 1,
+                  }}
+                >
+                  {automationDisplayPercentage}%
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    fontSize: "20px",
+                    color: "#525252",
+                    fontWeight: "bold",
+                    marginTop: "8px",
+                  }}
+                >
+                  BOT
                 </div>
               </div>
             </div>
@@ -332,7 +362,7 @@ export async function GET(request: Request) {
                 >
                   {column.map((data, rowIndex) => {
                     const color = data
-                      ? getSquareColor(data.human, data.ai, maxActivity || 1)
+                      ? getSquareColor(data.human, data.ai, data.automation, maxActivity || 1)
                       : null;
                     return (
                       <div

@@ -28,7 +28,13 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { playClick, playSuccess, playToggle } = useSound();
 
-  const url = typeof window !== "undefined" ? window.location.href : "";
+  const [url, setUrl] = useState("");
+  const [hasNativeShare, setHasNativeShare] = useState(false);
+
+  useEffect(() => {
+    setUrl(window.location.href);
+    setHasNativeShare(typeof navigator !== "undefined" && "share" in navigator);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -157,13 +163,13 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       {/* Primary: Copy Card */}
       <button
         type="button"
         onClick={handleCopyImage}
         disabled={copyImageLoading}
-        className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-black transition-all hover:bg-neutral-200 active:scale-95 shadow-lg shadow-white/5 disabled:opacity-50"
+        className="flex items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-bold text-black transition-all hover:bg-neutral-200 active:scale-95 shadow-lg shadow-white/5 disabled:opacity-50 sm:gap-2 sm:px-4 sm:text-sm"
       >
         {copyImageLoading ? (
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent" />
@@ -182,7 +188,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
           trackEvent("post_to_x", { label, type });
           playClick();
         }}
-        className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-black px-4 py-2 text-sm font-semibold text-neutral-400 transition-all hover:bg-neutral-900 hover:text-white hover:border-neutral-700 active:scale-95"
+        className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-800 bg-black px-3 py-2 text-xs font-semibold text-neutral-400 transition-all hover:bg-neutral-900 hover:text-white hover:border-neutral-700 active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
       >
         <XLogo />
         Post on X
@@ -192,7 +198,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
       <button
         type="button"
         onClick={handleCopyLink}
-        className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm font-semibold transition-all hover:bg-neutral-800 active:scale-95 min-w-[110px]"
+        className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs font-semibold transition-all hover:bg-neutral-800 active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
       >
         {copied ? (
           <>
@@ -240,7 +246,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
               Download PNG
             </button>
 
-            {typeof navigator !== "undefined" && "share" in navigator && (
+            {hasNativeShare && (
               <button
                 type="button"
                 onClick={handleNativeShare}
@@ -253,6 +259,6 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

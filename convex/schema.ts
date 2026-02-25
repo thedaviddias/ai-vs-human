@@ -26,6 +26,26 @@ export default defineSchema({
     syncCommitsFetched: v.optional(v.number()), // running count, updated per page of 100 commits
     requestedAt: v.number(),
     pushedAt: v.optional(v.number()), // GitHub pushed_at timestamp — used to order sync queue (latest first)
+    // Granular tool/bot breakdown — computed during sync while commits exist, persisted after cleanup
+    toolBreakdown: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          label: v.string(),
+          commits: v.number(),
+          additions: v.number(),
+        })
+      )
+    ),
+    botBreakdown: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          label: v.string(),
+          commits: v.number(),
+        })
+      )
+    ),
   })
     .index("by_fullName", ["fullName"])
     .index("by_owner", ["owner"])
@@ -176,6 +196,14 @@ export default defineSchema({
     dayKey: v.string(),
     dayCount: v.number(),
   }).index("by_owner_ip", ["owner", "ipHash"]),
+
+  repoResyncRateLimits: defineTable({
+    repoFullName: v.string(),
+    ipHash: v.string(),
+    lastResyncAt: v.number(),
+    dayKey: v.string(),
+    dayCount: v.number(),
+  }).index("by_repo_ip", ["repoFullName", "ipHash"]),
 
   profiles: defineTable({
     owner: v.string(),

@@ -8,6 +8,8 @@ import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HumanAiBadges } from "@/components/badges/HumanAiBadges";
 import { UserCard } from "@/components/cards/UserCard";
+import { AIToolBreakdown } from "@/components/charts/AIToolBreakdown";
+import { BotToolBreakdown } from "@/components/charts/BotToolBreakdown";
 import { ContributionHeatmap } from "@/components/charts/ContributionHeatmap";
 import { StatsSummary } from "@/components/charts/StatsSummary";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -264,6 +266,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   const multiDailyStats = useQuery(
     api.queries.stats.getMultiRepoDailyStats,
+    repoFullNames.length > 0 ? { repoFullNames } : "skip"
+  );
+
+  const multiRepoDetailedBreakdown = useQuery(
+    api.queries.stats.getMultiRepoDetailedBreakdown,
     repoFullNames.length > 0 ? { repoFullNames } : "skip"
   );
 
@@ -611,7 +618,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
           </a>
         )}
 
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <div className="mt-8 flex flex-wrap justify-center gap-2 sm:gap-3">
           <ErrorBoundary level="widget">
             <ShareButtons
               label={owner}
@@ -623,7 +630,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             type="button"
             onClick={handleResync}
             disabled={isResyncing || isSyncInProgress}
-            className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm font-semibold transition-all hover:bg-neutral-800 active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs font-semibold transition-all hover:bg-neutral-800 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-4 sm:text-sm"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncInProgress ? "animate-spin" : ""}`} />
             Re-sync
@@ -639,22 +646,22 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
       {/* Sync Progress Status Pill */}
       {isSyncInProgress && (
-        <div className="mt-12 flex flex-col items-center gap-1.5 animate-in fade-in slide-in-from-top-2 duration-500">
-          <div className="flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400/80">
+        <div className="mt-12 flex flex-col items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-500">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400/80">
             <Loader2 className="h-3 w-3 animate-spin" />
             <span>
               {isAnySyncing
                 ? `Synced ${syncedCount}/${totalRepoCount} repos`
                 : "Initializing analysis"}
             </span>
+            {currentlySyncing && (
+              <span className="font-medium text-purple-400/50">
+                — {currentlySyncing.name}:{" "}
+                {getSyncStageLabel(currentlySyncing.syncStage, currentlySyncing.syncCommitsFetched)}
+              </span>
+            )}
           </div>
-          {currentlySyncing && (
-            <div className="text-[10px] font-medium tracking-wide text-purple-400/50">
-              {currentlySyncing.name}:{" "}
-              {getSyncStageLabel(currentlySyncing.syncStage, currentlySyncing.syncCommitsFetched)}
-            </div>
-          )}
-          <div className="mt-1 text-[11px] italic text-neutral-500 transition-opacity duration-500">
+          <div className="text-sm italic text-neutral-500 transition-opacity duration-500">
             {funMessage}
           </div>
 
@@ -664,7 +671,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               onClick={() => setIsNotificationModalOpen(true)}
               className="mt-4 flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900/50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-400 transition-all hover:bg-neutral-800 hover:text-white"
             >
-              <Bell className="h-3 w-3" />
+              <Bell className="h-3 w-3 animate-bell-ring" />
               Taking a while? Notify me when done
             </button>
           )}
@@ -705,12 +712,13 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                 locAutomationPercentage={userSummary.locAutomationPercentage}
                 totalAdditions={userSummary.locTotals?.totalAdditions}
                 hasLocData={userSummary.hasLocData}
+                showZeroAiWhyCta={true}
               />
             </ErrorBoundary>
 
             {/* Heatmap */}
             <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
+              <div className="flex flex-col gap-3 border-b border-neutral-800 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-lg font-bold text-white">Public Activity Timeline</h2>
                   <p className="mt-1 text-xs text-neutral-500">
@@ -718,7 +726,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   </p>
                 </div>
                 {userSummary?.hasLocData && (
-                  <div className="inline-flex rounded-lg border border-neutral-800 bg-black p-1">
+                  <div className="inline-flex self-start rounded-lg border border-neutral-800 bg-black p-1">
                     <button
                       type="button"
                       onClick={() => setChartMode("commits")}
@@ -750,6 +758,23 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                 </div>
               </ErrorBoundary>
             </div>
+
+            {/* AI Tool Breakdown */}
+            {multiRepoDetailedBreakdown && multiRepoDetailedBreakdown.toolBreakdown.length > 0 && (
+              <ErrorBoundary level="section">
+                <AIToolBreakdown
+                  toolBreakdown={multiRepoDetailedBreakdown.toolBreakdown}
+                  viewMode={userSummary.hasLocData ? chartMode : "commits"}
+                />
+              </ErrorBoundary>
+            )}
+
+            {/* Automation Bot Breakdown */}
+            {multiRepoDetailedBreakdown && multiRepoDetailedBreakdown.botBreakdown.length > 0 && (
+              <ErrorBoundary level="section">
+                <BotToolBreakdown botBreakdown={multiRepoDetailedBreakdown.botBreakdown} />
+              </ErrorBoundary>
+            )}
           </div>
         ) : isSyncInProgress ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -907,6 +932,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   followers={user.profile?.followers}
                   humanPercentage={user.humanPercentage}
                   botPercentage={user.botPercentage}
+                  automationPercentage={user.automationPercentage}
                   totalCommits={user.totalCommits}
                   repoCount={user.repoCount}
                   lastIndexedAt={user.lastIndexedAt}

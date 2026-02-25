@@ -2,10 +2,11 @@
 
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { ExternalLink, Loader2, Star } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw, Star } from "lucide-react";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useState } from "react";
 import { AIToolBreakdown } from "@/components/charts/AIToolBreakdown";
+import { BotToolBreakdown } from "@/components/charts/BotToolBreakdown";
 import { ContributionHeatmap } from "@/components/charts/ContributionHeatmap";
 import { ContributorBreakdown } from "@/components/charts/ContributorBreakdown";
 import { StatsSummary } from "@/components/charts/StatsSummary";
@@ -84,6 +85,24 @@ export function RepoDashboardContent({
     }
   };
 
+  const [resyncRequesting, setResyncRequesting] = useState(false);
+  const [resyncError, setResyncError] = useState<string | null>(null);
+
+  const handleResync = async () => {
+    setResyncRequesting(true);
+    setResyncError(null);
+    try {
+      await postJson("/api/analyze/resync-repo", { owner, name: repoName });
+      trackEvent("resync_repo", { owner, repo: repoName });
+    } catch (error) {
+      setResyncError(
+        error instanceof Error ? error.message : "Failed to re-sync. Please try again."
+      );
+    } finally {
+      setTimeout(() => setResyncRequesting(false), 1000);
+    }
+  };
+
   const ownerHref = `/${encodeURIComponent(owner)}`;
   const repoHref = `${ownerHref}/${encodeURIComponent(repoName)}`;
   const breadcrumbs = [
@@ -145,16 +164,35 @@ export function RepoDashboardContent({
             <p className="mt-1 text-neutral-500 max-w-3xl">{repo.description}</p>
           )}
         </div>
-        <a
-          href={githubRepoUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-2 self-start rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition-colors hover:bg-neutral-800"
-        >
-          View on GitHub
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
+        <div className="flex items-center gap-2 self-start">
+          <a
+            href={githubRepoUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition-colors hover:bg-neutral-800"
+          >
+            View on GitHub
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+          {(repo?.syncStatus === "synced" || repo?.syncStatus === "error") && (
+            <button
+              type="button"
+              onClick={handleResync}
+              disabled={resyncRequesting}
+              className="inline-flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-200 transition-colors hover:bg-neutral-800 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${resyncRequesting ? "animate-spin" : ""}`} />
+              {repo?.syncStatus === "error" ? "Retry" : "Re-analyze"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {resyncError && (
+        <div className="mt-4 rounded-lg border border-red-800 bg-red-900/20 px-4 py-3 text-sm text-red-300">
+          {resyncError}
+        </div>
+      )}
 
       {/* Sync Progress Status Pill */}
       {isSyncInProgress && (
@@ -195,6 +233,7 @@ export function RepoDashboardContent({
               locAutomationPercentage={summary.locAutomationPercentage}
               totalAdditions={summary.locTotals?.totalAdditions}
               hasLocData={summary.hasLocData}
+              showZeroAiWhyCta={true}
             />
           </ErrorBoundary>
         ) : isSyncInProgress ? (
@@ -207,15 +246,6 @@ export function RepoDashboardContent({
             ))}
           </div>
         ) : null}
-
-        {summary?.toolBreakdown && (
-          <div className="mt-12">
-            <AIToolBreakdown
-              toolBreakdown={summary.toolBreakdown}
-              viewMode={summary.hasLocData ? chartMode : "commits"}
-            />
-          </div>
-        )}
 
         {/* Tabs */}
         <div className="mt-12 flex items-center justify-between border-b border-neutral-800">
@@ -247,14 +277,16 @@ export function RepoDashboardContent({
 
         {/* Chart mode toggle */}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-          <ErrorBoundary level="widget">
-            <ShareButtons
-              label={fullName}
-              type="repo"
-              botPercentage={summary?.aiPercentage ?? "0"}
-              targetId="repo-insights"
-            />
-          </ErrorBoundary>
+          <div className="flex flex-wrap items-center gap-2">
+            <ErrorBoundary level="widget">
+              <ShareButtons
+                label={fullName}
+                type="repo"
+                botPercentage={summary?.aiPercentage ?? "0"}
+                targetId="repo-insights"
+              />
+            </ErrorBoundary>
+          </div>
           {activeTab === "timeline" && summary?.hasLocData && (
             <div className="inline-flex rounded-lg border border-neutral-800 bg-neutral-900 p-1">
               <button
@@ -303,6 +335,21 @@ export function RepoDashboardContent({
             </ErrorBoundary>
           )}
         </div>
+
+        {summary?.toolBreakdown && (
+          <div className="mt-12">
+            <AIToolBreakdown
+              toolBreakdown={summary.toolBreakdown}
+              viewMode={summary.hasLocData ? chartMode : "commits"}
+            />
+          </div>
+        )}
+
+        {summary?.botBreakdown && (
+          <div className="mt-12">
+            <BotToolBreakdown botBreakdown={summary.botBreakdown} />
+          </div>
+        )}
       </div>
     </div>
   );

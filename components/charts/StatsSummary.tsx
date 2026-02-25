@@ -1,8 +1,10 @@
 "use client";
 
 import { Bot, CircleHelp, Cpu, Globe, Trophy, Users } from "lucide-react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { getRank } from "@/lib/ranks";
+import { shouldShowZeroAiGuidance } from "@/lib/zeroAiGuidance";
 
 interface StatsSummaryProps {
   totalCommits: number;
@@ -18,6 +20,8 @@ interface StatsSummaryProps {
   totalAdditions?: number;
   hasLocData?: boolean;
   isGlobal?: boolean;
+  showZeroAiWhyCta?: boolean;
+  zeroAiWhyHref?: string;
 }
 
 function formatNumber(n: number): string {
@@ -38,7 +42,7 @@ function StatCard({
   label: string;
   value: string;
   icon: ReactNode;
-  subtext?: string;
+  subtext?: ReactNode;
   tooltip: string;
   variant?: "default" | "human" | "ai" | "bot" | "accent" | "rank" | "global";
   textColor?: string;
@@ -54,7 +58,7 @@ function StatCard({
   };
 
   return (
-    <div className="relative overflow-visible rounded-xl border border-neutral-800 bg-neutral-900/40 p-6">
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-6">
       <div className="flex items-center justify-between">
         <div
           className={`rounded-lg p-2 ${iconColors[variant]} bg-black/20 border border-neutral-800`}
@@ -107,13 +111,31 @@ export function StatsSummary({
   totalAdditions,
   hasLocData,
   isGlobal = false,
+  showZeroAiWhyCta = false,
+  zeroAiWhyHref = "/docs/attribution",
 }: StatsSummaryProps) {
+  const showZeroAiGuidance = shouldShowZeroAiGuidance({
+    showZeroAiWhyCta,
+    botPercentage,
+    totalCommits,
+  });
+
   // Commits as primary, LOC as secondary subtext (following GitHub convention)
   const humanValue = `${humanPercentage}%`;
   const humanSubtext = hasLocData && locHumanPercentage ? `${locHumanPercentage}% code` : undefined;
 
   const aiValue = `${botPercentage}%`;
-  const aiSubtext = hasLocData && locBotPercentage ? `${locBotPercentage}% code` : undefined;
+  const aiSubtext: ReactNode = showZeroAiGuidance ? (
+    <Link
+      href={zeroAiWhyHref}
+      className="text-[10px] font-bold uppercase tracking-widest text-purple-400/80 transition-colors hover:text-purple-300"
+      aria-label="Learn why AI can show as 0%"
+    >
+      Why 0% AI?
+    </Link>
+  ) : hasLocData && locBotPercentage ? (
+    `${locBotPercentage}% code`
+  ) : undefined;
 
   const automationValue = `${automationPercentage}%`;
   const automationSubtext =
@@ -141,10 +163,13 @@ export function StatsSummary({
       ? `Percent of added lines attributed to humans.${additionsContext}`
       : "Percent of analyzed commits attributed to humans.";
 
-  const aiTooltip =
+  const aiBaseTooltip =
     hasLocData && locBotPercentage
       ? `Percent of added lines attributed to AI assistants (Copilot, Cursor, etc.).${additionsContext}`
       : "Percent of analyzed commits using AI tools.";
+  const aiTooltip = showZeroAiGuidance
+    ? `${aiBaseTooltip} Showing 0%? Attribution markers may be missing.`
+    : aiBaseTooltip;
 
   const automationTooltip =
     hasLocData && locAutomationPercentage
@@ -156,7 +181,7 @@ export function StatsSummary({
     : "Developer rank is derived from the Human percentage shown in this summary.";
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
       <StatCard
         label="Total Activity"
         value={formatNumber(totalCommits)}

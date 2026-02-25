@@ -1,5 +1,74 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
+import { KNOWN_AI_TOOL_KEYS } from "../classification/detailedBreakdown";
+
+/** AI tool mapping: weekly-stats field → display key/label */
+const AI_TOOL_FIELDS = [
+  {
+    field: "copilot",
+    additionsField: "copilotAdditions",
+    key: "github-copilot",
+    label: "GitHub Copilot",
+  },
+  { field: "claude", additionsField: "claudeAdditions", key: "claude-code", label: "Claude Code" },
+  { field: "cursor", additionsField: "cursorAdditions", key: "cursor", label: "Cursor" },
+  { field: "aider", additionsField: "aiderAdditions", key: "aider", label: "Aider" },
+  { field: "devin", additionsField: "devinAdditions", key: "devin", label: "Devin" },
+  {
+    field: "openaiCodex",
+    additionsField: "openaiCodexAdditions",
+    key: "openai-codex",
+    label: "OpenAI Codex",
+  },
+  { field: "gemini", additionsField: "geminiAdditions", key: "gemini", label: "Gemini" },
+  {
+    field: "aiAssisted",
+    additionsField: "aiAssistedAdditions",
+    key: "ai-unspecified",
+    label: "Other AI Assisted",
+  },
+] as const;
+
+const BOT_FIELDS = [
+  { field: "dependabot", key: "dependabot", label: "Dependabot" },
+  { field: "renovate", key: "renovate", label: "Renovate" },
+  { field: "githubActions", key: "github-actions", label: "GitHub Actions" },
+  { field: "otherBot", key: "other-bot", label: "Other Bots" },
+] as const;
+
+/**
+ * Build tool/bot breakdown arrays from weekly stats.
+ * Individual commits are deleted after the sync pipeline,
+ * so we reconstruct breakdowns from the persisted per-tool fields.
+ */
+function buildBreakdownFromStats(stats: Array<Record<string, number | string>>) {
+  const toolBreakdown: Array<{ key: string; label: string; commits: number; additions: number }> =
+    [];
+  for (const { field, additionsField, key, label } of AI_TOOL_FIELDS) {
+    let commits = 0;
+    let additions = 0;
+    for (const week of stats) {
+      commits += (week[field] as number) ?? 0;
+      additions += (week[additionsField] as number) ?? 0;
+    }
+    if (commits > 0 || additions > 0) {
+      toolBreakdown.push({ key, label, commits, additions });
+    }
+  }
+
+  const botBreakdown: Array<{ key: string; label: string; commits: number }> = [];
+  for (const { field, key, label } of BOT_FIELDS) {
+    let commits = 0;
+    for (const week of stats) {
+      commits += (week[field] as number) ?? 0;
+    }
+    if (commits > 0) {
+      botBreakdown.push({ key, label, commits });
+    }
+  }
+
+  return { toolBreakdown, botBreakdown };
+}
 
 export const getWeeklyStats = query({
   args: { repoFullName: v.string() },
@@ -115,6 +184,71 @@ export const getMultiRepoDailyStats = query({
   },
 });
 
+export const getMultiRepoDetailedBreakdown = query({
+  args: { repoFullNames: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    // Merge persisted breakdowns from each repo.
+    // Falls back to stats-based approximation for repos synced before this feature.
+    const aiMap = new Map<
+      string,
+      { key: string; label: string; commits: number; additions: number }
+    >();
+    const botMap = new Map<string, { key: string; label: string; commits: number }>();
+
+    for (const fullName of args.repoFullNames) {
+      const repo = await ctx.db
+        .query("repos")
+        .withIndex("by_fullName", (q) => q.eq("fullName", fullName))
+        .unique();
+      if (!repo) continue;
+
+      // Get tool breakdown: persisted or fall back to stats-based
+      let repoTools = repo.toolBreakdown;
+      let repoBots = repo.botBreakdown;
+      if (!repoTools) {
+        const stats = await ctx.db
+          .query("repoWeeklyStats")
+          .withIndex("by_repo", (q) => q.eq("repoId", repo._id))
+          .collect();
+        const fallback = buildBreakdownFromStats(stats as Array<Record<string, number | string>>);
+        repoTools = fallback.toolBreakdown;
+        repoBots = fallback.botBreakdown;
+      }
+
+      for (const tool of filterValidToolBreakdown(repoTools ?? [])) {
+        const existing = aiMap.get(tool.key);
+        if (existing) {
+          existing.commits += tool.commits;
+          existing.additions += tool.additions;
+        } else {
+          aiMap.set(tool.key, { ...tool });
+        }
+      }
+
+      for (const bot of repoBots ?? []) {
+        const existing = botMap.get(bot.key);
+        if (existing) {
+          existing.commits += bot.commits;
+        } else {
+          botMap.set(bot.key, { ...bot });
+        }
+      }
+    }
+
+    return {
+      toolBreakdown: Array.from(aiMap.values()).sort((a, b) => b.commits - a.commits),
+      botBreakdown: Array.from(botMap.values()).sort((a, b) => b.commits - a.commits),
+    };
+  },
+});
+
+/** Strip persisted entries that contain human usernames mistakenly stored as AI tools. */
+function filterValidToolBreakdown(
+  entries: Array<{ key: string; label: string; commits: number; additions: number }>
+): Array<{ key: string; label: string; commits: number; additions: number }> {
+  return entries.filter((e) => KNOWN_AI_TOOL_KEYS.has(e.key));
+}
+
 function formatPercentage(value: number): string {
   if (value === 0) return "0";
   if (value < 0.1) {
@@ -215,38 +349,17 @@ export const getRepoSummary = query({
     );
     const hasLocData = locTotals.totalAdditions > 0;
 
-    // Individual tool breakdown
-    const toolBreakdown = stats.reduce(
-      (acc, week) => {
-        acc.copilot.commits += week.copilot;
-        acc.copilot.additions += week.copilotAdditions ?? 0;
-        acc.claude.commits += week.claude;
-        acc.claude.additions += week.claudeAdditions ?? 0;
-        acc.cursor.commits += week.cursor ?? 0;
-        acc.cursor.additions += week.cursorAdditions ?? 0;
-        acc.aider.commits += week.aider ?? 0;
-        acc.aider.additions += week.aiderAdditions ?? 0;
-        acc.devin.commits += week.devin ?? 0;
-        acc.devin.additions += week.devinAdditions ?? 0;
-        acc.openaiCodex.commits += week.openaiCodex ?? 0;
-        acc.openaiCodex.additions += week.openaiCodexAdditions ?? 0;
-        acc.gemini.commits += week.gemini ?? 0;
-        acc.gemini.additions += week.geminiAdditions ?? 0;
-        acc.aiAssisted.commits += week.aiAssisted;
-        acc.aiAssisted.additions += week.aiAssistedAdditions ?? 0;
-        return acc;
-      },
-      {
-        copilot: { commits: 0, additions: 0 },
-        claude: { commits: 0, additions: 0 },
-        cursor: { commits: 0, additions: 0 },
-        aider: { commits: 0, additions: 0 },
-        devin: { commits: 0, additions: 0 },
-        openaiCodex: { commits: 0, additions: 0 },
-        gemini: { commits: 0, additions: 0 },
-        aiAssisted: { commits: 0, additions: 0 },
-      }
+    // Granular breakdown: prefer persisted data (from sync pipeline),
+    // fall back to stats-based approximation for repos synced before this feature.
+    // filterValidToolBreakdown strips human usernames that were incorrectly
+    // persisted as AI tools before the detailedBreakdown fix.
+    const toolBreakdown = filterValidToolBreakdown(
+      repo.toolBreakdown ??
+        buildBreakdownFromStats(stats as Array<Record<string, number | string>>).toolBreakdown
     );
+    const botBreakdown =
+      repo.botBreakdown ??
+      buildBreakdownFromStats(stats as Array<Record<string, number | string>>).botBreakdown;
 
     return {
       repo,
@@ -271,6 +384,7 @@ export const getRepoSummary = query({
         : null,
       hasLocData,
       toolBreakdown,
+      botBreakdown,
     };
   },
 });

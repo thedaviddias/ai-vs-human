@@ -83,6 +83,8 @@ export const KNOWN_BOT_PATTERNS: Array<{
   // Generic bot catch-alls (keep last)
   { pattern: /\[bot\]$/i, classification: "other-bot" },
   { pattern: /^bot-/i, classification: "other-bot" },
+  { pattern: /-bot$/i, classification: "other-bot" },
+  { pattern: /-bot\b/i, classification: "other-bot" },
 ];
 
 // ─── Co-authored-by AI patterns ───────────────────────────────────────

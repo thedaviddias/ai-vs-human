@@ -9,6 +9,7 @@
  */
 
 import type * as classification_botDetector from "../classification/botDetector.js";
+import type * as classification_detailedBreakdown from "../classification/detailedBreakdown.js";
 import type * as classification_knownBots from "../classification/knownBots.js";
 import type * as crons from "../crons.js";
 import type * as github_classifyPRs from "../github/classifyPRs.js";
@@ -29,6 +30,7 @@ import type * as mutations_recomputeGlobalStats from "../mutations/recomputeGlob
 import type * as mutations_requestRepo from "../mutations/requestRepo.js";
 import type * as mutations_requestUserAnalysis from "../mutations/requestUserAnalysis.js";
 import type * as mutations_resetStuckRepo from "../mutations/resetStuckRepo.js";
+import type * as mutations_resyncRepo from "../mutations/resyncRepo.js";
 import type * as mutations_resyncUser from "../mutations/resyncUser.js";
 import type * as queries_contributors from "../queries/contributors.js";
 import type * as queries_globalStats from "../queries/globalStats.js";
@@ -45,6 +47,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "classification/botDetector": typeof classification_botDetector;
+  "classification/detailedBreakdown": typeof classification_detailedBreakdown;
   "classification/knownBots": typeof classification_knownBots;
   crons: typeof crons;
   "github/classifyPRs": typeof github_classifyPRs;
@@ -65,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/requestRepo": typeof mutations_requestRepo;
   "mutations/requestUserAnalysis": typeof mutations_requestUserAnalysis;
   "mutations/resetStuckRepo": typeof mutations_resetStuckRepo;
+  "mutations/resyncRepo": typeof mutations_resyncRepo;
   "mutations/resyncUser": typeof mutations_resyncUser;
   "queries/contributors": typeof queries_contributors;
   "queries/globalStats": typeof queries_globalStats;

@@ -210,6 +210,7 @@ export const getUserByOwner = query({
 
     let humanCommits = 0;
     let aiCommits = 0;
+    let automationCommits = 0;
     let humanAdditions = 0;
     let aiAdditions = 0;
     const syncedRepoIds = [];
@@ -236,6 +237,7 @@ export const getUserByOwner = query({
           (week.devin ?? 0) +
           (week.openaiCodex ?? 0) +
           (week.gemini ?? 0);
+        automationCommits += week.dependabot + week.renovate + week.githubActions + week.otherBot;
 
         // LOC
         humanAdditions += week.humanAdditions ?? 0;
@@ -251,7 +253,7 @@ export const getUserByOwner = query({
       }
     }
 
-    const totalCommits = humanCommits + aiCommits;
+    const totalCommits = humanCommits + aiCommits + automationCommits;
     const totalAdditions = humanAdditions + aiAdditions;
 
     // Aggregate daily stats for heatmap
@@ -304,12 +306,15 @@ export const getUserByOwner = query({
       avatarUrl: `https://github.com/${args.owner}.png?size=160`,
       humanCommits,
       aiCommits,
+      automationCommits,
       totalCommits,
       totalAdditions,
       repoCount: syncedRepoIds.length,
       humanPercentage:
         totalCommits > 0 ? formatPercentage((humanCommits / totalCommits) * 100) : "0",
       aiPercentage: totalCommits > 0 ? formatPercentage((aiCommits / totalCommits) * 100) : "0",
+      automationPercentage:
+        totalCommits > 0 ? formatPercentage((automationCommits / totalCommits) * 100) : "0",
       locHumanPercentage:
         totalAdditions > 0 ? formatPercentage((humanAdditions / totalAdditions) * 100) : null,
       locAiPercentage:

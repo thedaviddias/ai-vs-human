@@ -357,11 +357,11 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
       )}
 
       {/* Legend — simplified discrete boxes */}
-      <div className="mt-4 flex flex-col items-start gap-3 text-[11px] text-neutral-500 sm:flex-row sm:items-center sm:justify-between border-t border-neutral-800 pt-4">
+      <div className="mt-4 flex flex-col gap-3 text-[11px] text-neutral-500 border-t border-neutral-800 pt-4">
         <div>
           <span>{viewMode === "loc" ? "Code added per day" : "Commits per day"} — UTC</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-1.5">
             <span>Less</span>
             <div className="flex gap-1">

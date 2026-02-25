@@ -242,6 +242,56 @@ export function computeUserSummary(aggregated: AggregatedWeek[]) {
 
   const hasLocData = locTotals.totalAdditions > 0;
 
+  // Per-tool breakdown (reuses same shape as getRepoSummary.toolBreakdown)
+  const toolBreakdown = aggregated.reduce(
+    (acc, week) => {
+      acc.copilot.commits += week.copilot;
+      acc.copilot.additions += week.copilotAdditions;
+      acc.claude.commits += week.claude;
+      acc.claude.additions += week.claudeAdditions;
+      acc.cursor.commits += week.cursor;
+      acc.cursor.additions += week.cursorAdditions;
+      acc.aider.commits += week.aider;
+      acc.aider.additions += week.aiderAdditions;
+      acc.devin.commits += week.devin;
+      acc.devin.additions += week.devinAdditions;
+      acc.openaiCodex.commits += week.openaiCodex;
+      acc.openaiCodex.additions += week.openaiCodexAdditions;
+      acc.gemini.commits += week.gemini;
+      acc.gemini.additions += week.geminiAdditions;
+      acc.aiAssisted.commits += week.aiAssisted;
+      acc.aiAssisted.additions += week.aiAssistedAdditions;
+      return acc;
+    },
+    {
+      copilot: { commits: 0, additions: 0 },
+      claude: { commits: 0, additions: 0 },
+      cursor: { commits: 0, additions: 0 },
+      aider: { commits: 0, additions: 0 },
+      devin: { commits: 0, additions: 0 },
+      openaiCodex: { commits: 0, additions: 0 },
+      gemini: { commits: 0, additions: 0 },
+      aiAssisted: { commits: 0, additions: 0 },
+    }
+  );
+
+  // Per-bot breakdown (reuses same shape as getRepoSummary.botBreakdown)
+  const botBreakdown = aggregated.reduce(
+    (acc, week) => {
+      acc.dependabot.commits += week.dependabot;
+      acc.renovate.commits += week.renovate;
+      acc.githubActions.commits += week.githubActions;
+      acc.otherBot.commits += week.otherBot;
+      return acc;
+    },
+    {
+      dependabot: { commits: 0 },
+      renovate: { commits: 0 },
+      githubActions: { commits: 0 },
+      otherBot: { commits: 0 },
+    }
+  );
+
   return {
     totals,
     aiPercentage,
@@ -260,5 +310,7 @@ export function computeUserSummary(aggregated: AggregatedWeek[]) {
       ? formatPercentage((locTotals.automationAdditions / locTotals.totalAdditions) * 100)
       : null,
     hasLocData,
+    toolBreakdown,
+    botBreakdown,
   };
 }

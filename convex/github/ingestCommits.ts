@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalMutation } from "../_generated/server";
 import { classificationToField } from "../classification/botDetector";
+import { buildDetailedBreakdowns } from "../classification/detailedBreakdown";
 import { classificationValidator } from "../lib/validators";
 
 const commitArg = v.object({
@@ -454,6 +455,11 @@ export const recomputeRepoStats = internalMutation({
         lastCommitAt: contrib.lastCommitAt,
       });
     }
+
+    // Persist granular tool/bot breakdown on the repo document.
+    // This runs while commits still exist — after this, commits are deleted.
+    const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns(commits);
+    await ctx.db.patch(args.repoId, { toolBreakdown, botBreakdown });
   },
 });
 

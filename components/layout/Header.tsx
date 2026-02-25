@@ -6,10 +6,10 @@ import { GithubStars } from "./GithubStars";
 export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-neutral-800 bg-black">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-8">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link
           href="/"
-          className="group flex items-center gap-2 text-xl font-bold tracking-tight text-white"
+          className="group flex shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-white sm:text-xl"
         >
           <div className="flex h-8 w-8 items-center justify-center rounded bg-white text-black shadow transition-transform group-hover:scale-105">
             <span className="text-xs font-black">AH</span>
@@ -17,7 +17,7 @@ export function Header() {
           <span>AI vs Human</span>
         </Link>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
           <GithubStars />
           <a
             href="https://x.com/thedaviddias"
