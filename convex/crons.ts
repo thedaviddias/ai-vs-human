@@ -15,4 +15,10 @@ crons.daily(
   internal.mutations.cleanupRateLimits.cleanupRateLimits
 );
 
+crons.hourly(
+  "recover-stuck-pending-repos",
+  { minuteUTC: 15 },
+  internal.github.recoverStuckRepos.recoverStuckRepos
+);
+
 export default crons;
