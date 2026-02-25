@@ -124,8 +124,6 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
   return Array.from(owners.values())
     .filter((owner) => owner.repoCount > 0) // Only show users who have at least one synced repo
     .map((owner) => {
-      const hasLocData = owner.totalAdditions > 0;
-
       return {
         owner: owner.owner,
         avatarUrl: `https://github.com/${owner.owner}.png?size=96`,
