@@ -165,16 +165,16 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
         Copy Card
       </button>
 
-      {/* Post to X */}
+      {/* Post on X */}
       <a
         href={twitterUrl}
         target="_blank"
         rel="noopener noreferrer"
         onClick={() => trackEvent("post_to_x", { label, type })}
-        className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-2 text-sm font-semibold transition-all hover:bg-neutral-800 active:scale-95"
+        className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-black px-4 py-2 text-sm font-semibold text-neutral-400 transition-all hover:bg-neutral-900 hover:text-white hover:border-neutral-700 active:scale-95"
       >
         <XLogo />
-        Post to X
+        Post on X
       </a>
 
       {/* Copy Link */}
