@@ -1,6 +1,7 @@
 export interface AutoAnalyzeGitHubRepo {
   name: string;
   fullName: string;
+  pushedAt?: number; // epoch ms from GitHub pushed_at
 }
 
 export interface AutoAnalyzeConvexRepo {
@@ -10,7 +11,7 @@ export interface AutoAnalyzeConvexRepo {
 
 export interface UserAutoAnalyzePlan {
   shouldTrigger: boolean;
-  reposToAnalyze: Array<{ owner: string; name: string }>;
+  reposToAnalyze: Array<{ owner: string; name: string; pushedAt?: number }>;
   shouldKickPendingQueue: boolean;
   showBootstrapIndicator: boolean;
 }
@@ -35,7 +36,11 @@ export function createUserAutoAnalyzePlan({
       const existing = convexByFullName.get(repo.fullName);
       return !existing || existing.syncStatus === "error";
     })
-    .map((repo) => ({ owner, name: repo.name }));
+    .map((repo) => ({
+      owner,
+      name: repo.name,
+      ...(repo.pushedAt !== undefined ? { pushedAt: repo.pushedAt } : {}),
+    }));
 
   const hasPending = convexRepos.some((entry) => entry.repo?.syncStatus === "pending");
   const hasSyncing = convexRepos.some((entry) => entry.repo?.syncStatus === "syncing");

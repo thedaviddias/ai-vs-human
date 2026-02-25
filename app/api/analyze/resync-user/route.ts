@@ -8,6 +8,7 @@ import { requireHumanRequest } from "@/lib/server/botProtection";
 interface AnalyzeUserRepoInput {
   owner: string;
   name: string;
+  pushedAt?: number;
 }
 
 interface ResyncUserRequest {
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
     .map((repo) => ({
       owner: repo.owner.trim(),
       name: repo.name.trim(),
+      ...(typeof repo.pushedAt === "number" ? { pushedAt: repo.pushedAt } : {}),
     }))
     .filter((repo) => repo.owner.length > 0 && repo.name.length > 0);
 

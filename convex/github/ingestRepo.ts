@@ -10,6 +10,7 @@ export const updateMetadata = internalMutation({
     description: v.optional(v.string()),
     stars: v.optional(v.number()),
     defaultBranch: v.string(),
+    pushedAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.repoId, {
@@ -17,6 +18,7 @@ export const updateMetadata = internalMutation({
       description: args.description,
       stars: args.stars,
       defaultBranch: args.defaultBranch,
+      ...(args.pushedAt !== undefined ? { pushedAt: args.pushedAt } : {}),
     });
   },
 });
@@ -89,20 +91,26 @@ export const markError = internalMutation({
  * Finds the next repo with syncStatus "pending" for this owner
  * and kicks off its ingestion. This creates a sequential chain:
  * repo1 finishes → triggers repo2 → repo2 finishes → triggers repo3...
+ *
+ * Repos are processed in "latest first" order (by `pushedAt` descending)
+ * so the sync indicator flows top-to-bottom when the user sorts by "Latest".
  */
 async function triggerNextPending(ctx: MutationCtx, owner: string) {
   const pendingRepos = await ctx.db
     .query("repos")
-    .withIndex("by_syncStatus", (q) => q.eq("syncStatus", "pending"))
+    .withIndex("by_owner_syncStatus", (q) => q.eq("owner", owner).eq("syncStatus", "pending"))
     .collect();
 
-  const nextRepo = pendingRepos.find((r) => r.owner === owner);
+  if (pendingRepos.length === 0) return;
 
-  if (nextRepo) {
-    await ctx.scheduler.runAfter(0, internal.github.fetchRepo.fetchRepo, {
-      repoId: nextRepo._id,
-      owner: nextRepo.owner,
-      name: nextRepo.name,
-    });
-  }
+  // Sort by pushedAt descending so the most-recently-pushed repo syncs first.
+  // Fallback to requestedAt for repos that predate the pushedAt field.
+  pendingRepos.sort((a, b) => (b.pushedAt ?? b.requestedAt) - (a.pushedAt ?? a.requestedAt));
+
+  const nextRepo = pendingRepos[0];
+  await ctx.scheduler.runAfter(0, internal.github.fetchRepo.fetchRepo, {
+    repoId: nextRepo._id,
+    owner: nextRepo.owner,
+    name: nextRepo.name,
+  });
 }

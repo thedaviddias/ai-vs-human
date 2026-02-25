@@ -23,6 +23,44 @@ import { trackEvent } from "@/lib/tracking";
 import { createUserAutoAnalyzePlan } from "@/lib/userAutoAnalyzePlan";
 import { formatPercentage } from "@/lib/utils";
 
+const SYNC_FUN_MESSAGES = [
+  "Counting ones and zeros...",
+  "Teaching robots to read git logs...",
+  "Asking GitHub very politely...",
+  "Sorting spaghetti code from linguine code...",
+  "Converting coffee into commit data...",
+  "Peeking behind the curtain of your repos...",
+  "Decoding your developer DNA...",
+  "This is faster than a code review, promise...",
+  "Running git blame on your entire career...",
+  "Finding the human behind the machine...",
+  "Measuring the AI vibes in your codebase...",
+  "Your commits are telling a great story...",
+  "Calculating your human-to-robot ratio...",
+  "Almost there... just one more API call...",
+  "Doing science with your commit history...",
+  "Scanning for traces of Copilot...",
+  "Your repos have quite the personality...",
+  "Impressive commit streak, by the way...",
+  "Separating human art from AI craft...",
+  "Crunching numbers at the speed of git...",
+];
+
+/** Cycles through fun messages at a regular interval while syncing */
+function useFunSyncMessage(isActive: boolean) {
+  const [index, setIndex] = useState(() => Math.floor(Math.random() * SYNC_FUN_MESSAGES.length));
+
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % SYNC_FUN_MESSAGES.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isActive]);
+
+  return SYNC_FUN_MESSAGES[index];
+}
+
 interface GitHubRepo {
   id: number;
   name: string;
@@ -140,6 +178,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
         repos: githubRepos.map((repo) => ({
           owner: owner,
           name: repo.name,
+          ...(repo.pushed_at ? { pushedAt: new Date(repo.pushed_at).getTime() } : {}),
         })),
       });
     } catch (error) {
@@ -170,6 +209,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
       githubRepos: githubRepos.map((repo) => ({
         name: repo.name,
         fullName: repo.full_name,
+        ...(repo.pushed_at ? { pushedAt: new Date(repo.pushed_at).getTime() } : {}),
       })),
       convexRepos,
     });
@@ -185,7 +225,15 @@ export function UserDashboardContent({ owner }: { owner: string }) {
       autoAnalyzePlan.reposToAnalyze.length > 0
         ? autoAnalyzePlan.reposToAnalyze
         : githubRepos[0]
-          ? [{ owner, name: githubRepos[0].name }]
+          ? [
+              {
+                owner,
+                name: githubRepos[0].name,
+                ...(githubRepos[0].pushed_at
+                  ? { pushedAt: new Date(githubRepos[0].pushed_at).getTime() }
+                  : {}),
+              },
+            ]
           : [];
 
     if (reposToAnalyze.length === 0) return;
@@ -298,6 +346,8 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   const totalRepoCount = convexRepos?.length ?? 0;
 
   const isSyncInProgress = (githubRepos.length > 0 && isAnySyncing) || isFirstIngestion;
+
+  const funMessage = useFunSyncMessage(isSyncInProgress);
 
   const repoGroups = useMemo(() => {
     if (!githubRepos || githubRepos.length === 0) return [];
@@ -484,6 +534,9 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               {getSyncStageLabel(currentlySyncing.syncStage, currentlySyncing.syncCommitsFetched)}
             </div>
           )}
+          <div className="mt-1 text-[11px] italic text-neutral-500 transition-opacity duration-500">
+            {funMessage}
+          </div>
         </div>
       )}
 

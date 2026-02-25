@@ -60,6 +60,7 @@ export const fetchRepo = internalAction({
       description: data.description ?? undefined,
       stars: data.stargazers_count,
       defaultBranch: data.default_branch,
+      pushedAt: data.pushed_at ? new Date(data.pushed_at).getTime() : undefined,
     });
 
     // Schedule commit fetching
