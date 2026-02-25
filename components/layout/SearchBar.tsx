@@ -3,6 +3,7 @@
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useSound } from "@/lib/hooks/useSound";
 import { parseRepoInput } from "@/lib/parseRepoInput";
 import { trackEvent } from "@/lib/tracking";
 
@@ -11,6 +12,7 @@ export function SearchBar() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { playSuccess, playError } = useSound();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -30,10 +32,12 @@ export function SearchBar() {
     const parsed = parseRepoInput(input);
     if (!parsed) {
       setError("Enter a GitHub username or owner/repo (e.g., thedaviddias or facebook/react)");
+      playError();
       return;
     }
 
     trackEvent("search", { query: input.trim() });
+    playSuccess();
 
     if (parsed.type === "user") {
       router.push(`/${parsed.owner}`);

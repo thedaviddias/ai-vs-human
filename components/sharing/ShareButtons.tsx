@@ -2,6 +2,7 @@
 
 import { Check, Copy, Download, Image as ImageIcon, MoreHorizontal, Share } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useSound } from "@/lib/hooks/useSound";
 import { logger } from "@/lib/logger";
 import { trackEvent } from "@/lib/tracking";
 
@@ -25,6 +26,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
   const [copyImageLoading, setCopyImageLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { playClick, playSuccess, playToggle } = useSound();
 
   const url = typeof window !== "undefined" ? window.location.href : "";
 
@@ -75,6 +77,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
       await navigator.clipboard.writeText(url);
       trackEvent("copy_link", { label, type });
       setCopied(true);
+      playSuccess();
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       logger.error("Failed to copy link", err);
@@ -91,6 +94,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
         });
         trackEvent("system_share", { label, type });
         setIsOpen(false);
+        playSuccess();
       } catch (err) {
         logger.error("Share failed", err);
       }
@@ -100,6 +104,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
   const handleCopyImage = async () => {
     const ogImageUrl = getOgImageUrl();
     setCopyImageLoading(true);
+    playClick();
     try {
       const clipboardPromise = fetch(ogImageUrl).then(async (res) => {
         if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
@@ -108,6 +113,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
       const item = new ClipboardItem({ "image/png": clipboardPromise });
       await navigator.clipboard.write([item]);
       trackEvent("copy_card", { label, type });
+      playSuccess();
       alert("Custom card copied to clipboard!");
     } catch (err) {
       logger.error("Failed to copy image", err);
@@ -120,6 +126,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
   const handleDownloadImage = async () => {
     const ogImageUrl = getOgImageUrl();
     setDownloadLoading(true);
+    playClick();
     try {
       const res = await fetch(ogImageUrl);
       if (!res.ok) throw new Error(`Failed to fetch image: ${res.statusText}`);
@@ -130,6 +137,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
       link.download = `${label.replace("/", "-")}-aivshuman.png`;
       link.click();
       trackEvent("download_png", { label, type });
+      playSuccess();
       setTimeout(() => {
         link.remove();
         URL.revokeObjectURL(blobUrl);
@@ -170,7 +178,10 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
         href={twitterUrl}
         target="_blank"
         rel="noopener noreferrer"
-        onClick={() => trackEvent("post_to_x", { label, type })}
+        onClick={() => {
+          trackEvent("post_to_x", { label, type });
+          playClick();
+        }}
         className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-black px-4 py-2 text-sm font-semibold text-neutral-400 transition-all hover:bg-neutral-900 hover:text-white hover:border-neutral-700 active:scale-95"
       >
         <XLogo />
@@ -200,7 +211,10 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
       <div className="relative" ref={dropdownRef}>
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            setIsOpen(!isOpen);
+            playToggle(!isOpen);
+          }}
           className={`flex h-9 w-9 items-center justify-center rounded-xl border transition-all active:scale-90 ${
             isOpen
               ? "border-white bg-white text-black"
