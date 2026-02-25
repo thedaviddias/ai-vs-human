@@ -18,6 +18,9 @@ jobs:
         (github.event.client_payload.environment == 'production' ||
          github.event.client_payload.target == 'production'))
     runs-on: ubuntu-latest
+    environment: production
+    env:
+      NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
     steps:
       - name: Checkout repository
         uses: vercel/repository-dispatch/actions/checkout@v1
