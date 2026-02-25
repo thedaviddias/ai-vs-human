@@ -61,15 +61,10 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
 
     for (const week of weeklyStats) {
       repoHumanCommits += week.human;
-      repoBotCommits +=
-        week.dependabot +
-        week.renovate +
-        week.copilot +
-        week.claude +
-        (week.cursor ?? 0) +
-        week.githubActions +
-        week.otherBot +
-        week.aiAssisted;
+      // Only count AI coding tools, NOT automation bots (dependabot, renovate,
+      // githubActions, otherBot). This matches the dashboard methodology so
+      // percentages are consistent across cards and detail pages.
+      repoBotCommits += week.copilot + week.claude + (week.cursor ?? 0) + week.aiAssisted;
     }
 
     const repoTotalCommits = repoHumanCommits + repoBotCommits;
