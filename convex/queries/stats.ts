@@ -128,9 +128,7 @@ export const getRepoSummary = query({
       .withIndex("by_repo", (q) => q.eq("repoId", repo._id))
       .collect();
 
-    // Focus on AI tools — exclude automation bots from totals.
-    // AI = copilot + claude + ai-assisted + aider + devin + openai-codex + gemini + cursor
-    // Excluded: dependabot, renovate, github-actions, other-bot
+    // 3-way split: Human / AI Assistants / Automation Bots
     const totals = stats.reduce(
       (acc, week) => {
         const ai =
@@ -142,13 +140,15 @@ export const getRepoSummary = query({
           (week.devin ?? 0) +
           (week.openaiCodex ?? 0) +
           (week.gemini ?? 0);
+        const automation = week.dependabot + week.renovate + week.githubActions + week.otherBot;
         return {
           human: acc.human + week.human,
           ai: acc.ai + ai,
-          total: acc.total + week.human + ai,
+          automation: acc.automation + automation,
+          total: acc.total + week.human + ai + automation,
         };
       },
-      { human: 0, ai: 0, total: 0 }
+      { human: 0, ai: 0, automation: 0, total: 0 }
     );
 
     // Trend: compare last 4 weeks vs previous 4 weeks (AI commits only)
@@ -198,8 +198,11 @@ export const getRepoSummary = query({
       { humanAdditions: 0, aiAdditions: 0, totalAdditions: 0, totalDeletions: 0 }
     );
 
-    const locTotal = locTotals.humanAdditions + locTotals.aiAdditions;
-    const hasLocData = locTotal > 0;
+    const locAutomationAdditions = Math.max(
+      0,
+      locTotals.totalAdditions - locTotals.humanAdditions - locTotals.aiAdditions
+    );
+    const hasLocData = locTotals.totalAdditions > 0;
 
     // Individual tool breakdown
     const toolBreakdown = stats.reduce(
@@ -237,18 +240,23 @@ export const getRepoSummary = query({
     return {
       repo,
       totals,
-      botPercentage: totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0",
+      aiPercentage: totals.total > 0 ? formatPercentage((totals.ai / totals.total) * 100) : "0",
       humanPercentage:
         totals.total > 0 ? formatPercentage((totals.human / totals.total) * 100) : "0",
+      automationPercentage:
+        totals.total > 0 ? formatPercentage((totals.automation / totals.total) * 100) : "0",
       trend: Math.round(trend),
       weekCount: stats.length,
       // LOC metrics — null when data not yet available (graceful degradation)
       locTotals,
-      locBotPercentage: hasLocData
-        ? formatPercentage((locTotals.aiAdditions / locTotal) * 100)
+      locAiPercentage: hasLocData
+        ? formatPercentage((locTotals.aiAdditions / locTotals.totalAdditions) * 100)
         : null,
       locHumanPercentage: hasLocData
-        ? formatPercentage((locTotals.humanAdditions / locTotal) * 100)
+        ? formatPercentage((locTotals.humanAdditions / locTotals.totalAdditions) * 100)
+        : null,
+      locAutomationPercentage: hasLocData
+        ? formatPercentage((locAutomationAdditions / locTotals.totalAdditions) * 100)
         : null,
       hasLocData,
       toolBreakdown,

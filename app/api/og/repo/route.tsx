@@ -63,7 +63,7 @@ export async function GET(request: Request) {
 
     // Use LOC percentages if available, otherwise commits
     const humanDisplayPercentage = summary.locHumanPercentage ?? summary.humanPercentage;
-    const aiDisplayPercentage = summary.locBotPercentage ?? summary.botPercentage;
+    const aiDisplayPercentage = summary.locAiPercentage ?? summary.aiPercentage;
     const percentageLabel = summary.locHumanPercentage ? "HUMAN" : "HUMAN";
     const aiLabel = summary.locHumanPercentage ? "AI/BOT" : "AI/BOT";
 

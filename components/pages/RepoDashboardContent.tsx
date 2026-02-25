@@ -167,11 +167,13 @@ export function RepoDashboardContent({
           <ErrorBoundary level="section">
             <StatsSummary
               totalCommits={summary.totals.total}
-              botPercentage={summary.botPercentage}
+              botPercentage={summary.aiPercentage}
               humanPercentage={summary.humanPercentage}
+              automationPercentage={summary.automationPercentage}
               trend={summary.trend}
-              locBotPercentage={summary.locBotPercentage}
+              locBotPercentage={summary.locAiPercentage}
               locHumanPercentage={summary.locHumanPercentage}
+              locAutomationPercentage={summary.locAutomationPercentage}
               totalAdditions={summary.locTotals?.totalAdditions}
               hasLocData={summary.hasLocData}
             />
@@ -230,7 +232,7 @@ export function RepoDashboardContent({
             <ShareButtons
               label={fullName}
               type="repo"
-              botPercentage={summary?.botPercentage ?? "0"}
+              botPercentage={summary?.aiPercentage ?? "0"}
               targetId="repo-insights"
             />
           </ErrorBoundary>
