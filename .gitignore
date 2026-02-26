@@ -54,3 +54,4 @@ next-env.d.ts
 
 # admin scripts (local-only, not committed)
 scripts/resync-all-users.ts
+scripts/RESYNC-GUIDE.md

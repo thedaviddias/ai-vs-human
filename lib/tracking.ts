@@ -24,10 +24,10 @@ type TrackingEvents = {
   // Embed
   copy_embed: { format: "markdown" | "html" };
   // Leaderboards
-  leaderboard_view: { section: "index" | "developers" | "repos" | "ai-tools" | "bots" };
+  leaderboard_view: { section: "index" | "developers" | "repos" | "ai-tools" | "bots" | "skills" };
   leaderboard_sort_change: {
-    section: "developers" | "repos";
-    sort: "stars" | "commits" | "followers" | "latest" | "owner";
+    section: "developers" | "repos" | "skills";
+    sort: "stars" | "commits" | "followers" | "latest" | "owner" | "repos";
   };
   leaderboard_metric_toggle: { section: "ai-tools"; metric: "commits" | "loc" };
   // Private data actions

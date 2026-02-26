@@ -62,6 +62,15 @@ export default defineSchema({
         computedAt: v.number(),
       })
     ),
+    aiConfigs: v.optional(
+      v.array(
+        v.object({
+          tool: v.string(), // "Cursor", "Claude", "skills.sh", "Copilot", "Windsurf", "Aider", "Roo Code", "Sweep", "CodeRabbit", "MutableAI"
+          type: v.string(), // "Rule File", "Skill", "Config"
+          name: v.string(), // "geo-aeo-optimization", ".cursorrules", "CLAUDE.md"
+        })
+      )
+    ),
   })
     .index("by_fullName", ["fullName"])
     .index("by_owner", ["owner"])

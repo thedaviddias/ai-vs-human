@@ -16,6 +16,8 @@ import type * as classification_detailedBreakdown from "../classification/detail
 import type * as classification_knownBots from "../classification/knownBots.js";
 import type * as classification_prAttribution from "../classification/prAttribution.js";
 import type * as crons from "../crons.js";
+import type * as github_adminResyncOwner from "../github/adminResyncOwner.js";
+import type * as github_aiDetection from "../github/aiDetection.js";
 import type * as github_classifyPRs from "../github/classifyPRs.js";
 import type * as github_classifyPRsHelpers from "../github/classifyPRsHelpers.js";
 import type * as github_fetchCommitStats from "../github/fetchCommitStats.js";
@@ -69,6 +71,8 @@ declare const fullApi: ApiFromModules<{
   "classification/knownBots": typeof classification_knownBots;
   "classification/prAttribution": typeof classification_prAttribution;
   crons: typeof crons;
+  "github/adminResyncOwner": typeof github_adminResyncOwner;
+  "github/aiDetection": typeof github_aiDetection;
   "github/classifyPRs": typeof github_classifyPRs;
   "github/classifyPRsHelpers": typeof github_classifyPRsHelpers;
   "github/fetchCommitStats": typeof github_fetchCommitStats;

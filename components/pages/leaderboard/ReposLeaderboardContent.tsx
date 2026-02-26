@@ -17,6 +17,7 @@ interface IndexedRepoData {
   stars?: number;
   lastSyncedAt?: number;
   requestedAt: number;
+  aiConfigs?: Array<{ tool: string; type: string; name: string }>;
 }
 
 const sortModes = ["stars", "latest", "owner"] as const;
@@ -25,6 +26,11 @@ const columns: ColumnDef<IndexedRepoData>[] = [
   {
     id: "fullName",
     accessorFn: (row) => row.fullName,
+    enableSorting: false,
+  },
+  {
+    id: "aiStack",
+    accessorFn: (row) => row.aiConfigs,
     enableSorting: false,
   },
   {
@@ -145,6 +151,7 @@ export function ReposLeaderboardContent({ initialRepos }: { initialRepos: Indexe
             <tr>
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Repository</th>
+              <th className="px-4 py-3">AI Stack</th>
               <th className="px-4 py-3">
                 <button
                   type="button"
@@ -190,6 +197,36 @@ export function ReposLeaderboardContent({ initialRepos }: { initialRepos: Indexe
                     >
                       {repo.fullName}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    {repo.aiConfigs && repo.aiConfigs.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {repo.aiConfigs.slice(0, 3).map((config) => {
+                          const isSkill = config.tool === "skills.sh" || config.type === "Skill";
+                          const label = isSkill ? config.name : config.tool;
+                          return (
+                            <span
+                              key={`${config.tool}-${config.name}`}
+                              title={config.name}
+                              className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                                isSkill
+                                  ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                                  : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                              }`}
+                            >
+                              {label}
+                            </span>
+                          );
+                        })}
+                        {repo.aiConfigs.length > 3 && (
+                          <span className="inline-flex items-center rounded-md bg-neutral-800 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-400">
+                            +{repo.aiConfigs.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-neutral-600">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-semibold text-amber-300">
                     {formatCompactNumber(repo.stars ?? 0)}

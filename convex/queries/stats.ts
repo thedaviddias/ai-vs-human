@@ -369,6 +369,63 @@ export const getGlobalToolLeaderboards = query({
   },
 });
 
+export const getGlobalSkillsLeaderboard = query({
+  args: {},
+  handler: async (ctx) => {
+    const repos = await ctx.db
+      .query("repos")
+      .withIndex("by_syncStatus", (q) => q.eq("syncStatus", "synced"))
+      .collect();
+
+    const skillsMap = new Map<
+      string,
+      {
+        tool: string;
+        type: string;
+        name: string;
+        repoCount: number;
+        totalStars: number;
+        owners: Set<string>;
+      }
+    >();
+
+    for (const repo of repos) {
+      if (!repo.aiConfigs || repo.aiConfigs.length === 0) continue;
+
+      for (const config of repo.aiConfigs) {
+        // Unique key for a skill is tool + name
+        const key = `${config.tool}:${config.name}`;
+
+        const existing = skillsMap.get(key);
+        if (existing) {
+          existing.repoCount += 1;
+          existing.totalStars += repo.stars ?? 0;
+          existing.owners.add(repo.owner);
+        } else {
+          skillsMap.set(key, {
+            tool: config.tool,
+            type: config.type,
+            name: config.name,
+            repoCount: 1,
+            totalStars: repo.stars ?? 0,
+            owners: new Set([repo.owner]),
+          });
+        }
+      }
+    }
+
+    return Array.from(skillsMap.values())
+      .map((entry) => ({
+        ...entry,
+        ownerCount: entry.owners.size,
+      }))
+      .sort(
+        (a, b) =>
+          b.repoCount - a.repoCount || b.totalStars - a.totalStars || a.name.localeCompare(b.name)
+      );
+  },
+});
+
 /** Strip persisted entries that contain human usernames mistakenly stored as AI tools. */
 function filterValidToolBreakdown(
   entries: Array<{ key: string; label: string; commits: number; additions: number }>

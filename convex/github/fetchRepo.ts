@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { detectAiConfigs } from "./aiDetection";
 
 export const fetchRepo = internalAction({
   args: { repoId: v.id("repos"), owner: v.string(), name: v.string() },
@@ -32,6 +33,43 @@ export const fetchRepo = internalAction({
     }
 
     const data = await response.json();
+    const defaultBranch = data.default_branch;
+
+    // Detect AI configs and skills
+    let aiConfigs: Array<{ tool: string; type: string; name: string }> = [];
+    try {
+      const treeResponse = await fetch(
+        `https://api.github.com/repos/${args.owner}/${args.name}/git/trees/${defaultBranch}`,
+        {
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: "application/vnd.github.v3+json",
+          },
+        }
+      );
+
+      if (treeResponse.ok) {
+        const treeData = await treeResponse.json();
+
+        const fetchSubTree = async (url: string) => {
+          const res = await fetch(url, {
+            headers: {
+              Authorization: `token ${token}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            return data.tree;
+          }
+          return null;
+        };
+
+        aiConfigs = await detectAiConfigs(treeData.tree, fetchSubTree);
+      }
+    } catch (err) {
+      console.error("Failed to detect AI configs:", err);
+    }
 
     // Fetch user profile to cache followers/display name
     try {
@@ -61,6 +99,7 @@ export const fetchRepo = internalAction({
       stars: data.stargazers_count,
       defaultBranch: data.default_branch,
       pushedAt: data.pushed_at ? new Date(data.pushed_at).getTime() : undefined,
+      aiConfigs: aiConfigs.length > 0 ? aiConfigs : undefined,
     });
 
     // Schedule commit fetching

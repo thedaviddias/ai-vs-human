@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { trackEvent } from "@/lib/tracking";
 
 interface LeaderboardViewTrackerProps {
-  section: "index" | "developers" | "repos" | "ai-tools" | "bots";
+  section: "index" | "developers" | "repos" | "ai-tools" | "bots" | "skills";
 }
 
 export function LeaderboardViewTracker({ section }: LeaderboardViewTrackerProps) {

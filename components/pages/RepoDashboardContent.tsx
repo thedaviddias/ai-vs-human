@@ -5,6 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { ExternalLink, Loader2, RefreshCw, Star } from "lucide-react";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useState } from "react";
+import { AiConfigStack } from "@/components/cards/AiConfigStack";
 import { AIToolBreakdown } from "@/components/charts/AIToolBreakdown";
 import { BotToolBreakdown } from "@/components/charts/BotToolBreakdown";
 import { ContributionHeatmap } from "@/components/charts/ContributionHeatmap";
@@ -247,6 +248,15 @@ export function RepoDashboardContent({
             ))}
           </div>
         ) : null}
+
+        {/* AI Configs/Skills */}
+        {repo?.aiConfigs && repo.aiConfigs.length > 0 && (
+          <div className="mt-12">
+            <ErrorBoundary level="section">
+              <AiConfigStack configs={repo.aiConfigs} />
+            </ErrorBoundary>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="mt-12 flex items-center justify-between border-b border-neutral-800">

@@ -21,6 +21,11 @@ export const LEADERBOARD_NAV: LeaderboardNavItem[] = [
     description: "Most starred and recently synced repositories.",
   },
   {
+    label: "Agent Skills",
+    href: "/leaderboard/skills",
+    description: "Most popular AI configurations and agent skills.",
+  },
+  {
     label: "AI Tools",
     href: "/leaderboard/ai-tools",
     description: "Most used AI coding and review tools across indexed repos.",

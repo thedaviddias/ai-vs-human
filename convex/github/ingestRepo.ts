@@ -11,6 +11,15 @@ export const updateMetadata = internalMutation({
     stars: v.optional(v.number()),
     defaultBranch: v.string(),
     pushedAt: v.optional(v.number()),
+    aiConfigs: v.optional(
+      v.array(
+        v.object({
+          tool: v.string(),
+          type: v.string(),
+          name: v.string(),
+        })
+      )
+    ),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.repoId, {
@@ -18,6 +27,7 @@ export const updateMetadata = internalMutation({
       description: args.description,
       stars: args.stars,
       defaultBranch: args.defaultBranch,
+      aiConfigs: args.aiConfigs,
       ...(args.pushedAt !== undefined ? { pushedAt: args.pushedAt } : {}),
     });
   },
