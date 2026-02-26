@@ -137,6 +137,13 @@ export async function POST(request: Request) {
       apiKey,
     });
 
+    logger.info("Resync triggered", {
+      owner,
+      repoCount: normalizedRepos.length,
+      resetCount: resyncResult.reset,
+      queuedCount: queuedRepos.length,
+    });
+
     return NextResponse.json({
       reset: resyncResult.reset,
       retryAfterSeconds: 0,
@@ -144,7 +151,10 @@ export async function POST(request: Request) {
       results: queuedRepos,
     });
   } catch (error) {
-    logger.error("Resync user mutation failed", error);
+    logger.error("Resync user mutation failed", error, {
+      owner,
+      repoCount: normalizedRepos.length,
+    });
     return NextResponse.json({ error: "Failed to re-sync user" }, { status: 500 });
   }
 }

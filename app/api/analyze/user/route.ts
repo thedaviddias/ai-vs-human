@@ -70,9 +70,14 @@ export async function POST(request: Request) {
     // Profile caching is handled by the ingestion pipeline (fetchRepo.ts).
     // No need for a redundant background fetch here.
 
+    logger.info("User analysis triggered", { owner: _owner, repoCount: normalizedRepos.length });
+
     return NextResponse.json(result);
   } catch (error) {
-    logger.error("User analysis mutation failed", error);
+    logger.error("User analysis mutation failed", error, {
+      owner: _owner,
+      repoCount: normalizedRepos.length,
+    });
     const message = error instanceof Error ? error.message : "Failed to request analysis";
     return NextResponse.json({ error: message }, { status: 500 });
   }

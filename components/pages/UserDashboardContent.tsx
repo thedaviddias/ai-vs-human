@@ -198,7 +198,13 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   }, [owner, githubRepos]);
 
   // Phase 3: Reactive queries for sync progress + chart data
-  const repoFullNames = useMemo(() => githubRepos.map((r) => r.full_name), [githubRepos]);
+  // Build fullNames from `owner` (URL param) + repo name so they match the
+  // format stored in Convex. GitHub's `r.full_name` uses canonical casing
+  // (e.g. "MarwanBz/repo") which may differ from the URL path ("marwanbz").
+  const repoFullNames = useMemo(
+    () => githubRepos.map((r) => `${owner}/${r.name}`),
+    [owner, githubRepos]
+  );
 
   const convexRepos = useQuery(
     api.queries.repos.getReposByFullNames,
@@ -212,7 +218,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
       owner,
       githubRepos: githubRepos.map((repo) => ({
         name: repo.name,
-        fullName: repo.full_name,
+        fullName: `${owner}/${repo.name}`,
         ...(repo.pushed_at ? { pushedAt: new Date(repo.pushed_at).getTime() } : {}),
       })),
       convexRepos,
@@ -629,7 +635,12 @@ export function UserDashboardContent({ owner }: { owner: string }) {
           <button
             type="button"
             onClick={handleResync}
-            disabled={isResyncing || isSyncInProgress}
+            disabled={isResyncing || isSyncInProgress || githubRepos.length === 0}
+            title={
+              githubRepos.length === 0
+                ? "GitHub repos not loaded — try refreshing the page"
+                : undefined
+            }
             className="flex items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs font-semibold transition-all hover:bg-neutral-800 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-4 sm:text-sm"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncInProgress ? "animate-spin" : ""}`} />
@@ -639,8 +650,9 @@ export function UserDashboardContent({ owner }: { owner: string }) {
       </div>
 
       {resyncError && (
-        <div className="mx-auto mt-8 max-w-md rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+        <div className="mx-auto mt-8 max-w-md rounded-lg border border-red-800 bg-red-900/20 px-4 py-3 text-sm text-red-300">
           {resyncError}
+          {githubRepos.length === 0 && " GitHub data couldn't be loaded. Try refreshing the page."}
         </div>
       )}
 
@@ -838,7 +850,9 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {group.repos.map((ghRepo) => {
-                      const convexRepo = convexRepos?.find((r) => r.fullName === ghRepo.full_name);
+                      const convexRepo = convexRepos?.find(
+                        (r) => r.fullName === `${owner}/${ghRepo.name}`
+                      );
                       const syncStatus = convexRepo?.repo?.syncStatus;
                       const repoPercentages = convexRepo?.repo?._id
                         ? repoPercentagesById.get(convexRepo.repo._id)
