@@ -487,6 +487,15 @@ export const getRepoSummary = query({
     const botBreakdown =
       repo.botBreakdown ??
       buildBreakdownFromStats(stats as Array<Record<string, number | string>>).botBreakdown;
+    const prAttribution =
+      repo.prAttribution && repo.prAttribution.totalCommits > 0
+        ? {
+            ...repo.prAttribution,
+            breakdown: [...repo.prAttribution.breakdown].sort(
+              (a, b) => b.commits - a.commits || a.label.localeCompare(b.label)
+            ),
+          }
+        : (repo.prAttribution ?? null);
 
     return {
       repo,
@@ -512,6 +521,7 @@ export const getRepoSummary = query({
       hasLocData,
       toolBreakdown,
       botBreakdown,
+      prAttribution,
     };
   },
 });

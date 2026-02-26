@@ -9,6 +9,7 @@ import { AIToolBreakdown } from "@/components/charts/AIToolBreakdown";
 import { BotToolBreakdown } from "@/components/charts/BotToolBreakdown";
 import { ContributionHeatmap } from "@/components/charts/ContributionHeatmap";
 import { ContributorBreakdown } from "@/components/charts/ContributorBreakdown";
+import { PrAttributionBreakdown } from "@/components/charts/PrAttributionBreakdown";
 import { StatsSummary } from "@/components/charts/StatsSummary";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
@@ -343,6 +344,12 @@ export function RepoDashboardContent({
               toolBreakdown={summary.toolBreakdown}
               viewMode={summary.hasLocData ? chartMode : "commits"}
             />
+          </div>
+        )}
+
+        {(summary?.prAttribution?.totalCommits ?? 0) > 0 && (
+          <div className="mt-12">
+            <PrAttributionBreakdown prAttribution={summary?.prAttribution ?? null} />
           </div>
         )}
 

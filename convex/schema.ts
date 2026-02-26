@@ -46,6 +46,22 @@ export default defineSchema({
         })
       )
     ),
+    prAttribution: v.optional(
+      v.object({
+        totalCommits: v.number(),
+        aiCommits: v.number(),
+        automationCommits: v.number(),
+        breakdown: v.array(
+          v.object({
+            key: v.string(),
+            label: v.string(),
+            lane: v.union(v.literal("ai"), v.literal("automation")),
+            commits: v.number(),
+          })
+        ),
+        computedAt: v.number(),
+      })
+    ),
   })
     .index("by_fullName", ["fullName"])
     .index("by_owner", ["owner"])

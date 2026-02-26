@@ -109,4 +109,7 @@ Correct attribution ensures that your project's dashboard accurately reflects th
 Detection patterns improve over time, but updates apply when repositories are analyzed again.  
 If a repository was indexed before a detection update, run a new analysis to pick up the latest attribution improvements.
 
+PR attribution metrics on repository pages follow the same rule: they appear after a sync or re-sync using the updated classifier.  
+Older indexed repositories will not show PR-attributed totals until they are processed again.
+
 If you use a tool that isn't being detected, please [open an issue](https://github.com/thedaviddias/bot-vs-human/issues) or [contribute a pattern](https://github.com/thedaviddias/bot-vs-human/blob/main/convex/classification/knownBots.ts) to our open-source detection engine.

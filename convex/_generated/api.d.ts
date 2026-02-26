@@ -14,6 +14,7 @@ import type * as classification_attributionMappings from "../classification/attr
 import type * as classification_botDetector from "../classification/botDetector.js";
 import type * as classification_detailedBreakdown from "../classification/detailedBreakdown.js";
 import type * as classification_knownBots from "../classification/knownBots.js";
+import type * as classification_prAttribution from "../classification/prAttribution.js";
 import type * as crons from "../crons.js";
 import type * as github_classifyPRs from "../github/classifyPRs.js";
 import type * as github_classifyPRsHelpers from "../github/classifyPRsHelpers.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   "classification/botDetector": typeof classification_botDetector;
   "classification/detailedBreakdown": typeof classification_detailedBreakdown;
   "classification/knownBots": typeof classification_knownBots;
+  "classification/prAttribution": typeof classification_prAttribution;
   crons: typeof crons;
   "github/classifyPRs": typeof github_classifyPRs;
   "github/classifyPRsHelpers": typeof github_classifyPRsHelpers;

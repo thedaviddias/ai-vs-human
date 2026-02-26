@@ -196,6 +196,20 @@ export const writeRepoStats = internalMutation({
         commits: v.number(),
       })
     ),
+    prAttribution: v.object({
+      totalCommits: v.number(),
+      aiCommits: v.number(),
+      automationCommits: v.number(),
+      breakdown: v.array(
+        v.object({
+          key: v.string(),
+          label: v.string(),
+          lane: v.union(v.literal("ai"), v.literal("automation")),
+          commits: v.number(),
+        })
+      ),
+      computedAt: v.number(),
+    }),
   },
   handler: async (ctx, args) => {
     // 1. Delete existing weekly stats
@@ -253,6 +267,7 @@ export const writeRepoStats = internalMutation({
     await ctx.db.patch(args.repoId, {
       toolBreakdown: args.toolBreakdown,
       botBreakdown: args.botBreakdown,
+      prAttribution: args.prAttribution,
     });
   },
 });

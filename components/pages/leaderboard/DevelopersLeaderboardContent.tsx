@@ -3,7 +3,6 @@
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
-import { Lock } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
@@ -250,12 +249,7 @@ export function DevelopersLeaderboardContent({
                   </td>
                   <td className="px-4 py-3 font-semibold text-neutral-200">
                     {formatCompactNumber(user.totalCommits)}
-                    {user.hasPrivateData && (
-                      <Lock
-                        className="ml-1 inline h-3 w-3 text-purple-400/60"
-                        aria-label="Includes private repo data"
-                      />
-                    )}
+                    {user.hasPrivateData && "+"}
                   </td>
                   <td className="px-4 py-3 text-neutral-300">
                     {formatCompactNumber(user.repoCount)}
@@ -315,12 +309,7 @@ export function DevelopersLeaderboardContent({
                 <div>
                   <span className="text-neutral-500">Commits</span>{" "}
                   {formatCompactNumber(user.totalCommits)}
-                  {user.hasPrivateData && (
-                    <Lock
-                      className="ml-1 inline h-3 w-3 text-purple-400/60"
-                      aria-label="Includes private repo data"
-                    />
-                  )}
+                  {user.hasPrivateData && "+"}
                 </div>
                 <div>
                   <span className="text-neutral-500">Repos</span>{" "}

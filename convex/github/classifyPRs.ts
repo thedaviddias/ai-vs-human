@@ -9,9 +9,14 @@ import {
   AI_REVIEW_LOGIN_CLASSIFICATION_PATTERNS,
   AI_REVIEW_PR_BODY_CLASSIFICATION_PATTERNS,
   AI_REVIEW_PR_BRANCH_CLASSIFICATION_PATTERNS,
+  type AttributionClassification,
 } from "../classification/attributionMappings";
 import { buildDetailedBreakdowns } from "../classification/detailedBreakdown";
 import { extractPRNumber } from "../classification/knownBots";
+import {
+  aggregatePrAttribution,
+  type PrAttributionAggregateInput,
+} from "../classification/prAttribution";
 import { computeStatsFromCommits } from "./statsComputation";
 
 /**
@@ -37,6 +42,7 @@ export const classifyPRs = internalAction({
   },
   handler: async (ctx, args) => {
     const token = process.env.GITHUB_TOKEN;
+    const prAttributionInputs: PrAttributionAggregateInput[] = [];
 
     // Only attempt PR classification if we have a token
     if (token) {
@@ -78,7 +84,16 @@ export const classifyPRs = internalAction({
               const commitIds = prCommitMap.get(prNumber) ?? [];
               const classification = classifyPRAuthor(prData);
 
-              if (classification) {
+              if (classification && commitIds.length > 0) {
+                prAttributionInputs.push({
+                  classification,
+                  login: prData.user?.login ?? null,
+                  body: prData.body ?? null,
+                  branch: prData.head?.ref ?? null,
+                  labels: prData.labels.map((label) => label.name),
+                  commitCount: commitIds.length,
+                });
+
                 for (const commitId of commitIds) {
                   reclassifications.push({ commitId, classification });
                 }
@@ -127,6 +142,7 @@ export const classifyPRs = internalAction({
     // Compute stats in action memory (pure functions, no Convex transaction)
     const { weeklyStats, dailyStats, contributorStats } = computeStatsFromCommits(allCommits);
     const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns(allCommits);
+    const prAttribution = aggregatePrAttribution(prAttributionInputs, Date.now());
 
     // Write pre-computed results (lean mutation — only deletes old stats + inserts new)
     await ctx.runMutation(internal.github.ingestCommits.writeRepoStats, {
@@ -136,6 +152,7 @@ export const classifyPRs = internalAction({
       contributorStats,
       toolBreakdown,
       botBreakdown,
+      prAttribution,
     });
 
     // 6. Clean up individual commits — stats are now aggregated,
@@ -194,7 +211,7 @@ async function fetchPR(
 // ─── PR classification patterns ───────────────────────────────────────
 
 // Bot author patterns for PR creators
-const PR_BOT_PATTERNS: Array<{ pattern: RegExp; classification: string }> = [
+const PR_BOT_PATTERNS: Array<{ pattern: RegExp; classification: AttributionClassification }> = [
   { pattern: /cursor[- ]?agent/i, classification: "cursor" },
   { pattern: /copilot-swe-agent/i, classification: "copilot" },
   { pattern: /copilot/i, classification: "copilot" },
@@ -213,7 +230,10 @@ const PR_BOT_PATTERNS: Array<{ pattern: RegExp; classification: string }> = [
 ];
 
 // PR body patterns that indicate AI involvement
-const PR_BODY_AI_PATTERNS: Array<{ pattern: RegExp; classification: string }> = [
+const PR_BODY_AI_PATTERNS: Array<{
+  pattern: RegExp;
+  classification: AttributionClassification;
+}> = [
   { pattern: /Generated with \[?Cursor\]?/i, classification: "cursor" },
   { pattern: /\[Cursor\]/i, classification: "cursor" },
   { pattern: /Generated with \[?Claude Code\]?/i, classification: "claude" },
@@ -236,7 +256,10 @@ const PR_BODY_AI_PATTERNS: Array<{ pattern: RegExp; classification: string }> = 
 ];
 
 // Branch name patterns that indicate AI agent involvement
-const PR_BRANCH_AI_PATTERNS: Array<{ pattern: RegExp; classification: string }> = [
+const PR_BRANCH_AI_PATTERNS: Array<{
+  pattern: RegExp;
+  classification: AttributionClassification;
+}> = [
   { pattern: /^cursor\//i, classification: "cursor" },
   { pattern: /^copilot\//i, classification: "copilot" },
   { pattern: /^devin\//i, classification: "devin" },
@@ -265,7 +288,7 @@ const PR_LABEL_AI_PATTERNS: RegExp[] = [/ai[- ]generated/i, /copilot/i, /automat
  * 4. PR body contains AI markers → "ai-assisted"
  * 5. PR labels indicate AI → "ai-assisted"
  */
-export function classifyPRAuthor(pr: PRData): string | null {
+export function classifyPRAuthor(pr: PRData): AttributionClassification | null {
   // 1. Bot account type
   if (pr.user.type === "Bot") {
     for (const { pattern, classification } of PR_BOT_PATTERNS) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Lock } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -137,15 +137,14 @@ export function UserCard({
               )}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-end gap-1.5 shrink-0 ml-3">
             {hasPrivateData && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-400">
-                <Lock className="h-2.5 w-2.5" />
-                Incl. private
+              <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-400 whitespace-nowrap border border-purple-500/20">
+                Incl. Private
               </span>
             )}
             {lastIndexedAt && (
-              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-700 whitespace-nowrap">
                 {formatTimeAgo(lastIndexedAt)}
               </div>
             )}
@@ -167,7 +166,7 @@ export function UserCard({
             </span>
             <span className="text-sm font-bold text-neutral-200">
               {formatCompactNumber(totalCommits)}
-              {isSyncing && "+"}
+              {(isSyncing || hasPrivateData) && "+"}
             </span>
           </div>
           <div className="flex flex-col">
