@@ -152,11 +152,11 @@ export function createDynamicMetadata(config: MetadataConfig): Metadata {
 export const rootMetadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: "AI vs Human — Who's writing open source?",
+    default: "AI vs Human — Who's writing your code?",
     template: `%s | ${siteConfig.name}`,
   },
   description:
-    "Visualize how much of open source is written by AI vs humans. Analyze any GitHub repo to see commit breakdowns by Claude, Copilot, Dependabot, and more.",
+    "Visualize how much of your code is written by AI vs humans. Analyze any GitHub repo — public or private — to see commit breakdowns by Claude, Copilot, Dependabot, and more.",
   applicationName: siteConfig.name,
   keywords: DEFAULT_KEYWORDS,
   authors: [{ name: SEO_CONFIG.authorName, url: SEO_CONFIG.authorUrl }],
@@ -165,7 +165,7 @@ export const rootMetadata: Metadata = {
   openGraph: {
     title: siteConfig.name,
     description:
-      "Visualize how much of open source is written by AI vs humans. Analyze any GitHub repo to see commit breakdowns by Claude, Copilot, Dependabot, and more.",
+      "Visualize how much of your code is written by AI vs humans. Analyze any GitHub repo — public or private — to see commit breakdowns by Claude, Copilot, Dependabot, and more.",
     url: siteConfig.url,
     siteName: siteConfig.name,
     type: "website",
@@ -184,7 +184,7 @@ export const rootMetadata: Metadata = {
     site: SEO_CONFIG.xHandle,
     title: siteConfig.name,
     description:
-      "Visualize how much of open source is written by AI vs humans. Analyze any GitHub repo to see commit breakdowns by Claude, Copilot, Dependabot, and more.",
+      "Visualize how much of your code is written by AI vs humans. Analyze any GitHub repo — public or private — to see commit breakdowns by Claude, Copilot, Dependabot, and more.",
     creator: SEO_CONFIG.xHandle,
     images: [
       {

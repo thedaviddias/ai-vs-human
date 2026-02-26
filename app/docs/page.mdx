@@ -15,7 +15,7 @@ export const metadata = createMetadata({
 
 # About
 
-How we classify commits and measure the impact of AI coding tools on open source.
+How we classify commits and measure the impact of AI coding tools on GitHub — including public and private repositories.
 
 ---
 
@@ -73,17 +73,31 @@ After fetching commits from the GitHub REST API, we enrich them with line-of-cod
 
 ---
 
+## Private Repository Support
+
+Users who sign in with GitHub can optionally link their private repository data. Here's how it works:
+
+- **Aggregate counts only** — We fetch commit metadata from your private repos, classify each commit in memory, and store only the daily and weekly totals (human / AI / bot counts). No repository names, commit messages, code, or file paths are ever stored.
+- **Same classification pipeline** — Private commits go through the exact same priority-based cascade described above. The results are merged into your profile's activity timeline and stats.
+- **Code volume not available** — The GitHub API does not return line-of-code data from the list-commits endpoint used for private repos. The heatmap's code volume view reflects public repos only.
+- **Privacy controls** — You can toggle whether visitors see your private data on your profile, or keep it visible only to yourself. You can also unlink all private data at any time, which permanently deletes the stored aggregates.
+
+Leaderboard rankings are always based on public data only, ensuring a fair comparison across all users regardless of whether they've linked private repos.
+
+---
+
 ## Data Scope & Limitations
 
 There are important differences between our data and what GitHub shows on a user's contribution graph.
 
-| Factor | AI vs Human | GitHub |
-| --- | --- | --- |
-| What's counted | Commits to default branch only | All contributions (commits, PRs, issues, reviews) |
-| Repositories | Top 20 non-fork repos by stars | All repositories the user has contributed to |
-| Time range | Last 2 years | Last 1 year (contribution graph) |
-| Timezone | UTC (all dates bucketed at UTC midnight) | User's profile timezone |
-| Timestamp used | `authoredAt` (when the code was written) | `committedAt` (when the commit was recorded) |
+| Factor | AI vs Human (Public) | AI vs Human (Private) | GitHub |
+| --- | --- | --- | --- |
+| What's counted | Commits to default branch only | All commits to default branch | All contributions (commits, PRs, issues, reviews) |
+| Repositories | Top 20 non-fork repos by stars | All private repos (up to 200) | All repositories the user has contributed to |
+| Time range | Last 2 years | Last 2 years | Last 1 year (contribution graph) |
+| Timezone | UTC (all dates bucketed at UTC midnight) | UTC | User's profile timezone |
+| Timestamp used | `authoredAt` (when the code was written) | `authoredAt` | `committedAt` (when the commit was recorded) |
+| Code volume | Enriched via GraphQL API | Not available | N/A |
 
 > Because of these differences, the activity you see on AI vs Human will not match GitHub's contribution graph exactly. Our focus is on analyzing commit authorship — who (or what) wrote the code — rather than replicating GitHub's contribution tracking.
 

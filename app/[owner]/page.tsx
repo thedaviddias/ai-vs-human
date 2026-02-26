@@ -15,7 +15,7 @@ export async function generateMetadata({
     noSuffix: true,
     socialTitle: `@${owner} | AI vs Human`,
     twitterTitle: `@${owner} - aivshuman.dev`,
-    description: `Analyze ${owner}'s open-source contribution mix across top repositories, with human vs AI commit and code volume breakdowns.`,
+    description: `Analyze ${owner}'s GitHub contribution mix across repositories, with human vs AI commit and code volume breakdowns.`,
     path: `/${encodedOwner}`,
     ogImage: `/api/og/user?owner=${encodedOwner}`,
     keywords: [

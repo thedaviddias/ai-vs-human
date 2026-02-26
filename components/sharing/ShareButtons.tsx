@@ -104,13 +104,13 @@ export function ShareButtons({
     const humanVal = (100 - aiVal).toFixed(1);
 
     if (aiVal < 2) {
-      return `100% Organic Code. 🌿 My open source contributions are purely human-made. Check my breakdown:`;
+      return `100% Organic Code. 🌿 My GitHub contributions are purely human-made. Check my breakdown:`;
     }
     if (aiVal < 10) {
       return `Proof of Human: ${humanVal}% of my code is handcrafted. ✍️ Still keeping it real in the age of AI:`;
     }
     if (aiVal < 40) {
-      return `Turns out I'm ${aiVal}% Cyborg. 🦾 AI is my co-pilot in open source. Check the breakdown:`;
+      return `Turns out I'm ${aiVal}% Cyborg. 🦾 AI is my co-pilot on GitHub. Check the breakdown:`;
     }
     return `The future of coding is collaborative. 🤖 ${aiVal}% of my commits are AI-assisted. Am I more bot than you?`;
   };

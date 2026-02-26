@@ -965,8 +965,8 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   </div>
                   <p className="mt-1 text-xs text-neutral-500">
                     {showPrivateToViewer
-                      ? "Public + private repos. Only aggregate stats stored."
-                      : "Top 20 public repos you own. Commits by default, UTC."}
+                      ? "Public + private repos. Only aggregate counts are stored — no private code or repo names."
+                      : "Your top 20 public repos by stars. Commits by default, UTC."}
                   </p>
                 </div>
                 {userSummary?.hasLocData && (
