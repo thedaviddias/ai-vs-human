@@ -374,7 +374,7 @@ export function ContributionHeatmap({
       {locDataWarning && (
         <p className="mt-1 text-[11px] text-amber-500">
           {includesPrivateData
-            ? "Code volume isn\u2019t available for private repos. LOC view reflects public repo activity only."
+            ? "Code volume isn\u2019t available for private repos. This view reflects public repo activity only."
             : isSyncing
               ? "Code volume data may be incomplete for some commits. Enrichment in progress..."
               : "Code volume data may be incomplete for some commits. Try re-syncing."}
