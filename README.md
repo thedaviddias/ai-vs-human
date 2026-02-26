@@ -60,6 +60,6 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
 
----
+<!-- ---
 
-Build by [David Dias](https://thedaviddias.com) for the open source community.
+Build by [David Dias](https://thedaviddias.com) for the open source community. -->
