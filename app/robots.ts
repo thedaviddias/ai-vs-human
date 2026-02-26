@@ -30,6 +30,23 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "LinkedInBot",
         allow: "/",
       },
+      // AI Search & Generative Engine Crawlers (GEO optimization)
+      {
+        userAgent: "OAI-SearchBot",
+        allow: "/",
+      },
+      {
+        userAgent: "ChatGPT-User",
+        allow: "/",
+      },
+      {
+        userAgent: "PerplexityBot",
+        allow: "/",
+      },
+      {
+        userAgent: "ClaudeBot",
+        allow: "/",
+      },
     ],
     host: siteConfig.url,
     sitemap: `${siteConfig.url}/sitemap.xml`,
