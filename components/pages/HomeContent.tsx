@@ -8,6 +8,7 @@ import { UserCard } from "@/components/cards/UserCard";
 import { ContributionHeatmap, type DailyDataPoint } from "@/components/charts/ContributionHeatmap";
 import { StatsSummary } from "@/components/charts/StatsSummary";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AiToolLogo } from "@/components/pages/leaderboard/toolVisuals";
 import { api } from "@/convex/_generated/api";
 
 const sortModes = ["latest", "followers"] as const;
@@ -50,18 +51,38 @@ interface HomeContentProps {
   initialGlobalStats?: GlobalSummaryData | null;
   initialGlobalDailyStats?: DailyDataPoint[];
   initialIndexedUsers?: IndexedUserData[];
+  initialGlobalToolLeaderboards?: {
+    aiTools: Array<{
+      key: string;
+      label: string;
+      commits: number;
+      additions: number;
+      repoCount: number;
+      ownerCount: number;
+    }>;
+    bots: Array<{
+      key: string;
+      label: string;
+      commits: number;
+      repoCount: number;
+      ownerCount: number;
+    }>;
+  };
 }
 
 export function HomeContent({
   initialGlobalStats,
   initialGlobalDailyStats,
   initialIndexedUsers,
+  initialGlobalToolLeaderboards,
 }: HomeContentProps) {
   const globalDailyStats =
     useQuery(api.queries.globalStats.getGlobalDailyStats) ?? initialGlobalDailyStats;
   const globalSummary = useQuery(api.queries.globalStats.getGlobalSummary) ?? initialGlobalStats;
   const indexedUsers =
     useQuery(api.queries.users.getIndexedUsersWithProfiles) ?? initialIndexedUsers;
+  const globalToolLeaderboards =
+    useQuery(api.queries.stats.getGlobalToolLeaderboards) ?? initialGlobalToolLeaderboards;
 
   const [sortMode, setSortMode] = useQueryState(
     "sort",
@@ -74,6 +95,10 @@ export function HomeContent({
 
   const dailyData = globalDailyStats ?? [];
   const hasLocData = globalSummary?.hasLocData ?? false;
+  const topAiTools = useMemo(
+    () => (globalToolLeaderboards?.aiTools ?? []).slice(0, 5),
+    [globalToolLeaderboards?.aiTools]
+  );
 
   const visibleUsers = useMemo(() => {
     if (!indexedUsers) return [];
@@ -158,6 +183,71 @@ export function HomeContent({
             <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-8">
               <ContributionHeatmap data={dailyData} viewMode={hasLocData ? chartMode : "commits"} />
             </div>
+          </ErrorBoundary>
+        </div>
+      )}
+
+      {/* Top AI Tools Leaderboard Preview */}
+      {topAiTools.length > 0 && (
+        <div className="mt-24 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-150">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <h2 className="text-2xl font-bold tracking-tight text-white">Top AI Tools</h2>
+              <span className="rounded-full border border-neutral-800 bg-neutral-900 px-2.5 py-0.5 text-xs font-semibold text-neutral-400">
+                Global
+              </span>
+            </div>
+
+            <Link
+              href="/leaderboard/ai-tools"
+              className="text-sm font-semibold text-neutral-400 underline underline-offset-4 transition-colors hover:text-white"
+            >
+              View full leaderboard
+            </Link>
+          </div>
+
+          <ErrorBoundary level="section">
+            <div className="overflow-hidden rounded-xl border border-neutral-800">
+              <table className="w-full text-sm">
+                <thead className="bg-neutral-900/70 text-left text-xs uppercase tracking-widest text-neutral-500">
+                  <tr>
+                    <th className="px-4 py-3">#</th>
+                    <th className="px-4 py-3">Tool</th>
+                    <th className="px-4 py-3">Commits</th>
+                    <th className="px-4 py-3">Code Volume</th>
+                    <th className="px-4 py-3">Repos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topAiTools.map((tool, index) => (
+                    <tr
+                      key={tool.key}
+                      className="border-t border-neutral-800/80 hover:bg-neutral-900/40"
+                    >
+                      <td className="px-4 py-3 font-semibold text-neutral-400">{index + 1}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          <AiToolLogo toolKey={tool.key} label={tool.label} />
+                          <span className="font-semibold text-white">{tool.label}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-neutral-200">
+                        {tool.commits.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-300">
+                        {tool.additions.toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-neutral-300">
+                        {tool.repoCount.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-neutral-500">
+              Based on indexed public repositories currently tracked in AI vs Human.
+            </p>
           </ErrorBoundary>
         </div>
       )}

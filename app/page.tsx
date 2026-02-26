@@ -9,10 +9,11 @@ export const revalidate = 60;
 
 export default async function Home() {
   // Parallel fetch initial data on the server for zero-CLS and faster TTFB
-  const [globalStats, globalDailyStats, indexedUsers] = await Promise.all([
+  const [globalStats, globalDailyStats, indexedUsers, globalToolLeaderboards] = await Promise.all([
     fetchQuery(api.queries.globalStats.getGlobalSummary),
     fetchQuery(api.queries.globalStats.getGlobalDailyStats),
     fetchQuery(api.queries.users.getIndexedUsersWithProfiles),
+    fetchQuery(api.queries.stats.getGlobalToolLeaderboards),
   ]);
 
   const webSiteJsonLd = {
@@ -55,6 +56,7 @@ export default async function Home() {
             initialGlobalStats={globalStats}
             initialGlobalDailyStats={globalDailyStats ?? []}
             initialIndexedUsers={indexedUsers}
+            initialGlobalToolLeaderboards={globalToolLeaderboards}
           />
         </Suspense>
       </div>
