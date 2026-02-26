@@ -49,6 +49,7 @@ import type * as queries_globalStats from "../queries/globalStats.js";
 import type * as queries_privateStats from "../queries/privateStats.js";
 import type * as queries_repos from "../queries/repos.js";
 import type * as queries_stats from "../queries/stats.js";
+import type * as queries_userHelpers from "../queries/userHelpers.js";
 import type * as queries_users from "../queries/users.js";
 import type * as seed from "../seed.js";
 
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   "queries/privateStats": typeof queries_privateStats;
   "queries/repos": typeof queries_repos;
   "queries/stats": typeof queries_stats;
+  "queries/userHelpers": typeof queries_userHelpers;
   "queries/users": typeof queries_users;
   seed: typeof seed;
 }>;

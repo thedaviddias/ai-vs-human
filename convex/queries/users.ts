@@ -63,6 +63,7 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
     let repoHumanCommits = 0;
     let repoBotCommits = 0; // AI assistants
     let repoAutomationCommits = 0; // Maintenance bots
+    let repoTotalCommits = 0; // Use week.total (authoritative source of truth)
     let repoHumanAdditions = 0;
     let repoAiAdditions = 0;
     let repoTotalAdditions = 0;
@@ -81,6 +82,9 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
 
       repoAutomationCommits += week.dependabot + week.renovate + week.githubActions + week.otherBot;
 
+      // Use the pre-computed total from the DB — it's the source of truth
+      repoTotalCommits += week.total;
+
       // LOC (additions)
       repoHumanAdditions += week.humanAdditions ?? 0;
       repoAiAdditions +=
@@ -94,8 +98,6 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         (week.geminiAdditions ?? 0);
       repoTotalAdditions += week.totalAdditions ?? 0;
     }
-
-    const repoTotalCommits = repoHumanCommits + repoBotCommits + repoAutomationCommits;
     const repoAutomationAdditions = Math.max(
       0,
       repoTotalAdditions - repoHumanAdditions - repoAiAdditions
