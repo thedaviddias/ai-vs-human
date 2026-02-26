@@ -158,10 +158,13 @@ export function StatsSummary({
     : "";
 
   const hasPrivateEnrichment = privateCommitCount != null && privateCommitCount > 0;
-  const displayedTotal = hasPrivateEnrichment ? totalCommits + privateCommitCount : totalCommits;
+  // totalCommits already includes private data (merged upstream in aggregated stats).
+  // No need to add privateCommitCount again — it's shown as a "incl." badge instead.
+  const displayedTotal = totalCommits;
 
+  const publicCommitCount = hasPrivateEnrichment ? totalCommits - privateCommitCount : totalCommits;
   const totalCommitsTooltip = hasPrivateEnrichment
-    ? `${formatNumber(totalCommits)} public + ${formatNumber(privateCommitCount)} private commits across ${
+    ? `${formatNumber(publicCommitCount)} public + ${formatNumber(privateCommitCount)} private commits across ${
         repoCount ? `${repoCount} public repositories` : "the selected repositories"
       } plus private repos. Only aggregate counts are stored for private repos.`
     : `Total analyzed activity across ${
@@ -198,7 +201,9 @@ export function StatsSummary({
         icon={<Cpu className="h-5 w-5" />}
         subtext={
           hasPrivateEnrichment ? (
-            <span className="text-purple-400/80">+{formatNumber(privateCommitCount)} private</span>
+            <span className="text-purple-400/80">
+              incl. {formatNumber(privateCommitCount)} private
+            </span>
           ) : repoCount ? (
             `${repoCount} repos`
           ) : undefined
