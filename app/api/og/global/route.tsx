@@ -423,7 +423,7 @@ export async function GET() {
             fontWeight: "bold",
           }}
         >
-          <div style={{ display: "flex" }}>aivshuman.thedaviddias.com</div>
+          <div style={{ display: "flex" }}>aivshuman.dev</div>
         </div>
       </div>,
       {

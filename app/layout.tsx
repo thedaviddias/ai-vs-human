@@ -31,10 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
-        <PlausibleProvider
-          domain="aivshuman.thedaviddias.com"
-          enabled={process.env.NODE_ENV === "production"}
-        />
+        <PlausibleProvider domain="aivshuman.dev" enabled={process.env.NODE_ENV === "production"} />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-neutral-950 text-neutral-50 antialiased`}

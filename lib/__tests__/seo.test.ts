@@ -29,8 +29,8 @@ describe("seo helpers", () => {
   });
 
   it("builds absolute canonical URLs", () => {
-    expect(canonicalUrl("/docs")).toBe("https://aivshuman.thedaviddias.com/docs");
-    expect(canonicalUrl("docs")).toBe("https://aivshuman.thedaviddias.com/docs");
+    expect(canonicalUrl("/docs")).toBe("https://aivshuman.dev/docs");
+    expect(canonicalUrl("docs")).toBe("https://aivshuman.dev/docs");
   });
 
   it("creates metadata with merged deduplicated keywords", () => {
@@ -41,7 +41,7 @@ describe("seo helpers", () => {
       keywords: [DEFAULT_KEYWORDS[0], "custom-keyword"],
     });
 
-    expect(metadata.alternates?.canonical).toBe("https://aivshuman.thedaviddias.com/docs");
+    expect(metadata.alternates?.canonical).toBe("https://aivshuman.dev/docs");
 
     const keywords = metadata.keywords as string[];
     expect(keywords).toContain("custom-keyword");
@@ -55,7 +55,7 @@ describe("seo helpers", () => {
       path: "/docs/ranks",
     });
 
-    expect(metadata.alternates?.canonical).toBe("https://aivshuman.thedaviddias.com/docs/ranks");
+    expect(metadata.alternates?.canonical).toBe("https://aivshuman.dev/docs/ranks");
   });
 
   it("preserves encoded dynamic canonical paths", () => {
@@ -68,9 +68,7 @@ describe("seo helpers", () => {
       path: `/${encodedOwner}/${encodedRepo}`,
     });
 
-    expect(metadata.alternates?.canonical).toBe(
-      "https://aivshuman.thedaviddias.com/acme%20dev/core%20api"
-    );
+    expect(metadata.alternates?.canonical).toBe("https://aivshuman.dev/acme%20dev/core%20api");
   });
 
   it("sets noindex robots directives when requested", () => {
@@ -121,12 +119,12 @@ describe("seo helpers", () => {
     const entries = await sitemap();
     const urls = entries.map((entry) => entry.url);
 
-    expect(urls).toContain("https://aivshuman.thedaviddias.com/octocat");
-    expect(urls).toContain("https://aivshuman.thedaviddias.com/octocat/hello-world");
-    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard");
-    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/developers");
-    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/repos");
-    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/ai-tools");
-    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/bots");
+    expect(urls).toContain("https://aivshuman.dev/octocat");
+    expect(urls).toContain("https://aivshuman.dev/octocat/hello-world");
+    expect(urls).toContain("https://aivshuman.dev/leaderboard");
+    expect(urls).toContain("https://aivshuman.dev/leaderboard/developers");
+    expect(urls).toContain("https://aivshuman.dev/leaderboard/repos");
+    expect(urls).toContain("https://aivshuman.dev/leaderboard/ai-tools");
+    expect(urls).toContain("https://aivshuman.dev/leaderboard/bots");
   });
 });

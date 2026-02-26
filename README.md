@@ -4,7 +4,7 @@
 
 AI vs Human is a modern dashboard that analyzes GitHub repositories to reveal the real breakdown of contributions. We distinguish between human handcrafted code, AI-assisted commits (Copilot, Claude Code, Cursor, etc.), and automated maintenance bots.
 
-[Live Demo: aivshuman.thedaviddias.com](https://aivshuman.thedaviddias.com)
+[Live Demo: aivshuman.dev](https://aivshuman.dev)
 
 ## 🚀 Features
 
