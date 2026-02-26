@@ -211,6 +211,12 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
   const cells = useMemo(() => buildGrid(dataMap, visibleWeeks), [dataMap, visibleWeeks]);
   const monthLabels = useMemo(() => buildMonthLabels(cells), [cells]);
 
+  // Detect if data exists but none falls within the visible grid window
+  const hasVisibleData = useMemo(() => {
+    if (data.length === 0) return false;
+    return cells.some((cell) => cell.data !== undefined);
+  }, [data, cells]);
+
   // Maximum activity for intensity scaling
   const maxActivity = useMemo(() => {
     let max = 0;
@@ -344,6 +350,15 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-neutral-500 backdrop-blur-sm border border-neutral-800">
             No commit data yet. Re-sync to populate daily activity.
+          </p>
+        </div>
+      )}
+
+      {/* Data exists but is all outside the visible window */}
+      {hasData && !hasVisibleData && !isSyncing && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <p className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-neutral-500 backdrop-blur-sm border border-neutral-800">
+            All activity is older than 1 year. Heatmap shows the last 12 months.
           </p>
         </div>
       )}
