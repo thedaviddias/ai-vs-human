@@ -1,5 +1,6 @@
 import type { Doc } from "../_generated/dataModel";
 import type { Classification } from "./botDetector";
+import { CO_AUTHOR_AI_PATTERNS } from "./knownBots";
 
 type CommitDoc = Doc<"commits">;
 
@@ -67,6 +68,7 @@ const DETAILED_AI_PATTERNS: Array<{ pattern: RegExp; match: DetailedMatch }> = [
   { pattern: /bolt(?:-agent)?/i, match: { key: "bolt", label: "Bolt" } },
   { pattern: /\bv0(?:-bot)?\b/i, match: { key: "v0", label: "v0" } },
   { pattern: /blackbox-ai/i, match: { key: "blackbox-ai", label: "Blackbox AI" } },
+  { pattern: /\bclawd\b/i, match: { key: "clawd", label: "Clawd" } },
 ];
 
 const DETAILED_BOT_PATTERNS: Array<{ pattern: RegExp; match: DetailedMatch }> = [
@@ -89,6 +91,10 @@ const DETAILED_BOT_PATTERNS: Array<{ pattern: RegExp; match: DetailedMatch }> = 
   { pattern: /changeset-bot|changesets?/i, match: { key: "changesets", label: "Changesets" } },
   { pattern: /kodiakhq|kodiak/i, match: { key: "kodiak", label: "Kodiak" } },
   { pattern: /auto-merge/i, match: { key: "auto-merge", label: "Auto Merge" } },
+  { pattern: /clawdhub/i, match: { key: "clawdhub", label: "ClawdHub" } },
+  { pattern: /blog-post-bot/i, match: { key: "blog-post-bot", label: "Blog Post Bot" } },
+  { pattern: /smithery/i, match: { key: "smithery", label: "Smithery" } },
+  { pattern: /expo-bot|expo\[bot\]/i, match: { key: "expo-bot", label: "Expo Bot" } },
 ];
 
 function findDetailedMatch(
@@ -181,12 +187,16 @@ function classifyCommitForBreakdown(
       const caMatch = findDetailedMatch(ca, DETAILED_AI_PATTERNS);
       if (caMatch) return { kind: "ai", match: caMatch };
 
-      const normalized = normalizeIdentity(ca);
-      if (normalized) {
-        return {
-          kind: "ai",
-          match: { key: `ai-${normalized.slug}`, label: normalized.label },
-        };
+      // Only normalize co-authors confirmed to be AI tools — never human names
+      const isAiCoAuthor = CO_AUTHOR_AI_PATTERNS.some((p) => p.test(ca));
+      if (isAiCoAuthor) {
+        const normalized = normalizeIdentity(ca);
+        if (normalized) {
+          return {
+            kind: "ai",
+            match: { key: `ai-${normalized.slug}`, label: normalized.label },
+          };
+        }
       }
     }
 

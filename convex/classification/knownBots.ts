@@ -13,6 +13,12 @@ export const KNOWN_BOT_PATTERNS: Array<{
   { pattern: /greenkeeper/i, classification: "other-bot" },
   { pattern: /snyk-bot/i, classification: "other-bot" },
 
+  // Community / org bots
+  { pattern: /clawdhub/i, classification: "other-bot" },
+  { pattern: /blog-post-bot/i, classification: "other-bot" },
+  { pattern: /smithery/i, classification: "other-bot" },
+  { pattern: /expo-bot|expo\[bot\]/i, classification: "other-bot" },
+
   // AI coding agents — some register as "User" (not "Bot") on GitHub!
   // These patterns match author login, author name, and author email.
   { pattern: /^cursoragent$/i, classification: "cursor" },
@@ -148,8 +154,8 @@ export const CO_AUTHOR_AI_PATTERNS: RegExp[] = [
   /greptile/i,
   /korbit-ai/i,
 
-  // Generic AI patterns
-  /github-actions/i,
+  // Clawd (AI coding assistant)
+  /\bclawd\b/i,
 ];
 
 // ─── Co-author → specific classification ─────────────────────────────
