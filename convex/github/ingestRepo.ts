@@ -62,10 +62,30 @@ export const markSynced = internalMutation({
       syncCommitsFetched: undefined,
     });
 
-    // Trigger next pending repo by the same owner (sequential ingestion)
+    // Check for more pending repos and trigger next if any
+    let hasMorePending = false;
     if (repo) {
-      await triggerNextPending(ctx, repo.owner);
+      const pendingRepos = await ctx.db
+        .query("repos")
+        .withIndex("by_owner_syncStatus", (q) =>
+          q.eq("owner", repo.owner).eq("syncStatus", "pending")
+        )
+        .collect();
+
+      hasMorePending = pendingRepos.length > 0;
+
+      if (hasMorePending) {
+        // Sort by pushedAt descending so the most-recently-pushed repo syncs first
+        pendingRepos.sort((a, b) => (b.pushedAt ?? b.requestedAt) - (a.pushedAt ?? a.requestedAt));
+        await ctx.scheduler.runAfter(0, internal.github.fetchRepo.fetchRepo, {
+          repoId: pendingRepos[0]._id,
+          owner: pendingRepos[0].owner,
+          name: pendingRepos[0].name,
+        });
+      }
     }
+
+    return { hasMorePending };
   },
 });
 

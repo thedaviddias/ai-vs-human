@@ -21,6 +21,7 @@ import type * as github_ingestCommits from "../github/ingestCommits.js";
 import type * as github_ingestRepo from "../github/ingestRepo.js";
 import type * as github_recoverStuckRepos from "../github/recoverStuckRepos.js";
 import type * as github_resyncStaleRepos from "../github/resyncStaleRepos.js";
+import type * as github_statsComputation from "../github/statsComputation.js";
 import type * as lib_analyzeApiKey from "../lib/analyzeApiKey.js";
 import type * as lib_resyncThrottle from "../lib/resyncThrottle.js";
 import type * as lib_validators from "../lib/validators.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   "github/ingestRepo": typeof github_ingestRepo;
   "github/recoverStuckRepos": typeof github_recoverStuckRepos;
   "github/resyncStaleRepos": typeof github_resyncStaleRepos;
+  "github/statsComputation": typeof github_statsComputation;
   "lib/analyzeApiKey": typeof lib_analyzeApiKey;
   "lib/resyncThrottle": typeof lib_resyncThrottle;
   "lib/validators": typeof lib_validators;

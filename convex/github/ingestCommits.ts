@@ -1,8 +1,7 @@
+import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import { internalMutation } from "../_generated/server";
-import { classificationToField } from "../classification/botDetector";
-import { buildDetailedBreakdowns } from "../classification/detailedBreakdown";
+import { internalMutation, internalQuery } from "../_generated/server";
 import { classificationValidator } from "../lib/validators";
 
 const commitArg = v.object({
@@ -96,275 +95,119 @@ export const batchUpdateLoc = internalMutation({
   },
 });
 
-function getDayStart(epochMs: number): number {
-  const d = new Date(epochMs);
-  d.setUTCHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function getWeekStart(epochMs: number): number {
-  const date = new Date(epochMs);
-  const day = date.getUTCDay();
-  const diff = (day === 0 ? -6 : 1) - day;
-  const monday = new Date(date);
-  monday.setUTCDate(date.getUTCDate() + diff);
-  monday.setUTCHours(0, 0, 0, 0);
-  return monday.getTime();
-}
+// ─── Paginated query for action-based stats computation ──────────────
 
 /**
- * Returns an ISO 8601 week label (e.g. "2025-W01") for a given timestamp.
- * Uses the ISO week-numbering year — the year of the Thursday in the same week.
+ * Returns a page of commits for a repo, used by the classifyPRs action
+ * to read commits in batches and stay under the 16 MB read limit.
  */
-function formatWeekLabel(weekStartMs: number): string {
-  const date = new Date(weekStartMs);
-  const day = date.getUTCDay();
-  const thursdayOffset = day === 0 ? -3 : 4 - day;
-  const thursday = new Date(date);
-  thursday.setUTCDate(date.getUTCDate() + thursdayOffset);
-
-  const isoYear = thursday.getUTCFullYear();
-  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
-  const jan4Day = jan4.getUTCDay();
-  const startOfIsoYear = new Date(jan4);
-  startOfIsoYear.setUTCDate(jan4.getUTCDate() - (jan4Day === 0 ? 6 : jan4Day - 1));
-
-  const diffMs = thursday.getTime() - startOfIsoYear.getTime();
-  const week = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
-
-  return `${isoYear}-W${String(week).padStart(2, "0")}`;
-}
-
-type Classification =
-  | "human"
-  | "dependabot"
-  | "renovate"
-  | "copilot"
-  | "claude"
-  | "cursor"
-  | "aider"
-  | "devin"
-  | "openai-codex"
-  | "gemini"
-  | "github-actions"
-  | "other-bot"
-  | "ai-assisted";
-
-interface WeekBucket {
-  human: number;
-  dependabot: number;
-  renovate: number;
-  copilot: number;
-  claude: number;
-  cursor: number;
-  aider: number;
-  devin: number;
-  openaiCodex: number;
-  gemini: number;
-  githubActions: number;
-  otherBot: number;
-  aiAssisted: number;
-  total: number;
-  // LOC per classification (additions only, for AI tool categories + human)
-  humanAdditions: number;
-  copilotAdditions: number;
-  claudeAdditions: number;
-  cursorAdditions: number;
-  aiderAdditions: number;
-  devinAdditions: number;
-  openaiCodexAdditions: number;
-  geminiAdditions: number;
-  aiAssistedAdditions: number;
-  totalAdditions: number;
-  totalDeletions: number;
-}
-
-function emptyBucket(): WeekBucket {
-  return {
-    human: 0,
-    dependabot: 0,
-    renovate: 0,
-    copilot: 0,
-    claude: 0,
-    cursor: 0,
-    aider: 0,
-    devin: 0,
-    openaiCodex: 0,
-    gemini: 0,
-    githubActions: 0,
-    otherBot: 0,
-    aiAssisted: 0,
-    total: 0,
-    humanAdditions: 0,
-    copilotAdditions: 0,
-    claudeAdditions: 0,
-    cursorAdditions: 0,
-    aiderAdditions: 0,
-    devinAdditions: 0,
-    openaiCodexAdditions: 0,
-    geminiAdditions: 0,
-    aiAssistedAdditions: 0,
-    totalAdditions: 0,
-    totalDeletions: 0,
-  };
-}
-
-export const recomputeRepoStats = internalMutation({
-  args: { repoId: v.id("repos") },
+export const getCommitsBatch = internalQuery({
+  args: {
+    repoId: v.id("repos"),
+    paginationOpts: paginationOptsValidator,
+  },
   handler: async (ctx, args) => {
-    // Delete existing weekly stats
-    const existingStats = await ctx.db
+    return await ctx.db
+      .query("commits")
+      .withIndex("by_repo", (q) => q.eq("repoId", args.repoId))
+      .paginate(args.paginationOpts);
+  },
+});
+
+// ─── Write-only stats mutation ───────────────────────────────────────
+
+const weeklyStatValidator = v.object({
+  weekStart: v.number(),
+  weekLabel: v.string(),
+  human: v.number(),
+  dependabot: v.number(),
+  renovate: v.number(),
+  copilot: v.number(),
+  claude: v.number(),
+  cursor: v.number(),
+  aider: v.number(),
+  devin: v.number(),
+  openaiCodex: v.number(),
+  gemini: v.number(),
+  githubActions: v.number(),
+  otherBot: v.number(),
+  aiAssisted: v.number(),
+  total: v.number(),
+  humanAdditions: v.number(),
+  copilotAdditions: v.number(),
+  claudeAdditions: v.number(),
+  cursorAdditions: v.number(),
+  aiderAdditions: v.number(),
+  devinAdditions: v.number(),
+  openaiCodexAdditions: v.number(),
+  geminiAdditions: v.number(),
+  aiAssistedAdditions: v.number(),
+  totalAdditions: v.number(),
+  totalDeletions: v.number(),
+});
+
+const dailyStatValidator = v.object({
+  date: v.number(),
+  human: v.number(),
+  ai: v.number(),
+  automation: v.number(),
+  humanAdditions: v.number(),
+  aiAdditions: v.number(),
+  automationAdditions: v.number(),
+});
+
+const contributorStatValidator = v.object({
+  login: v.optional(v.string()),
+  name: v.optional(v.string()),
+  email: v.optional(v.string()),
+  classification: v.string(),
+  commitCount: v.number(),
+  additions: v.number(),
+  deletions: v.number(),
+  firstCommitAt: v.number(),
+  lastCommitAt: v.number(),
+});
+
+/**
+ * Writes pre-computed stats to the database.
+ *
+ * Called by the classifyPRs action after it has read all commits via
+ * paginated queries and computed stats in action memory. This mutation
+ * only touches the stats tables (not commits), keeping reads well under 16 MB.
+ */
+export const writeRepoStats = internalMutation({
+  args: {
+    repoId: v.id("repos"),
+    weeklyStats: v.array(weeklyStatValidator),
+    dailyStats: v.array(dailyStatValidator),
+    contributorStats: v.array(contributorStatValidator),
+    toolBreakdown: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        commits: v.number(),
+        additions: v.number(),
+      })
+    ),
+    botBreakdown: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        commits: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    // 1. Delete existing weekly stats
+    const existingWeekly = await ctx.db
       .query("repoWeeklyStats")
       .withIndex("by_repo", (q) => q.eq("repoId", args.repoId))
       .collect();
-    for (const stat of existingStats) {
+    for (const stat of existingWeekly) {
       await ctx.db.delete(stat._id);
     }
 
-    // Delete existing contributor stats
-    const existingContribs = await ctx.db
-      .query("repoContributorStats")
-      .withIndex("by_repo", (q) => q.eq("repoId", args.repoId))
-      .collect();
-    for (const contrib of existingContribs) {
-      await ctx.db.delete(contrib._id);
-    }
-
-    // Fetch all commits for this repo
-    const commits = await ctx.db
-      .query("commits")
-      .withIndex("by_repo", (q) => q.eq("repoId", args.repoId))
-      .collect();
-
-    // Group by week + day
-    const weekBuckets = new Map<number, WeekBucket>();
-    const dayBuckets = new Map<
-      number,
-      {
-        human: number;
-        ai: number;
-        automation: number;
-        humanAdditions: number;
-        aiAdditions: number;
-        automationAdditions: number;
-      }
-    >();
-
-    const AI_TOOL_CLASSIFICATIONS = new Set([
-      "copilot",
-      "claude",
-      "cursor",
-      "aider",
-      "devin",
-      "openai-codex",
-      "gemini",
-      "ai-assisted",
-    ]);
-
-    for (const commit of commits) {
-      const weekStart = getWeekStart(commit.authoredAt);
-      if (!weekBuckets.has(weekStart)) {
-        weekBuckets.set(weekStart, emptyBucket());
-      }
-      const bucket = weekBuckets.get(weekStart)!;
-      const field = classificationToField(
-        commit.classification as Classification
-      ) as keyof WeekBucket;
-      (bucket[field] as number)++;
-      bucket.total++;
-
-      // Aggregate LOC (additions) per classification — only AI tools + human
-      const adds = commit.additions ?? 0;
-      const dels = commit.deletions ?? 0;
-      switch (commit.classification) {
-        case "human":
-          bucket.humanAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "copilot":
-          bucket.copilotAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "claude":
-          bucket.claudeAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "cursor":
-          bucket.cursorAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "aider":
-          bucket.aiderAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "devin":
-          bucket.devinAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "openai-codex":
-          bucket.openaiCodexAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "gemini":
-          bucket.geminiAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        case "ai-assisted":
-          bucket.aiAssistedAdditions += adds;
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-        default:
-          // Automation bots: dependabot, renovate, github-actions, other-bot
-          bucket.totalAdditions += adds;
-          bucket.totalDeletions += dels;
-          break;
-      }
-
-      // Daily bucketing — 3-way split: human / AI / automation
-      const dayStart = getDayStart(commit.authoredAt);
-      const dayBucket = dayBuckets.get(dayStart) ?? {
-        human: 0,
-        ai: 0,
-        automation: 0,
-        humanAdditions: 0,
-        aiAdditions: 0,
-        automationAdditions: 0,
-      };
-
-      if (commit.classification === "human") {
-        dayBucket.human++;
-        dayBucket.humanAdditions += adds;
-      } else if (AI_TOOL_CLASSIFICATIONS.has(commit.classification)) {
-        dayBucket.ai++;
-        dayBucket.aiAdditions += adds;
-      } else {
-        // Automation bots: dependabot, renovate, github-actions, other-bot
-        dayBucket.automation++;
-        dayBucket.automationAdditions += adds;
-      }
-      dayBuckets.set(dayStart, dayBucket);
-    }
-
-    // Insert weekly stats
-    for (const [weekStart, counts] of weekBuckets) {
-      await ctx.db.insert("repoWeeklyStats", {
-        repoId: args.repoId,
-        weekStart,
-        weekLabel: formatWeekLabel(weekStart),
-        ...counts,
-      });
-    }
-
-    // Delete existing daily stats for this repo
+    // 2. Delete existing daily stats
     const existingDaily = await ctx.db
       .query("repoDailyStats")
       .withIndex("by_repo", (q) => q.eq("repoId", args.repoId))
@@ -373,93 +216,44 @@ export const recomputeRepoStats = internalMutation({
       await ctx.db.delete(d._id);
     }
 
-    // Insert daily stats
-    for (const [date, counts] of dayBuckets) {
+    // 3. Delete existing contributor stats
+    const existingContribs = await ctx.db
+      .query("repoContributorStats")
+      .withIndex("by_repo", (q) => q.eq("repoId", args.repoId))
+      .collect();
+    for (const contrib of existingContribs) {
+      await ctx.db.delete(contrib._id);
+    }
+
+    // 4. Insert new weekly stats
+    for (const stat of args.weeklyStats) {
+      await ctx.db.insert("repoWeeklyStats", {
+        repoId: args.repoId,
+        ...stat,
+      });
+    }
+
+    // 5. Insert new daily stats
+    for (const stat of args.dailyStats) {
       await ctx.db.insert("repoDailyStats", {
         repoId: args.repoId,
-        date,
-        ...counts,
+        ...stat,
       });
     }
 
-    // Compute contributor stats with majority-vote classification.
-    // A contributor's classification is determined by their most frequent
-    // classification across all commits, not just the first commit seen.
-    const contributorMap = new Map<
-      string,
-      {
-        login?: string;
-        name?: string;
-        email?: string;
-        avatarUrl?: string;
-        classificationCounts: Map<string, number>;
-        commitCount: number;
-        additions: number;
-        deletions: number;
-        firstCommitAt: number;
-        lastCommitAt: number;
-      }
-    >();
-
-    for (const commit of commits) {
-      const key = commit.authorLogin ?? commit.authorEmail ?? commit.authorName ?? "unknown";
-      const existing = contributorMap.get(key);
-      if (existing) {
-        existing.commitCount++;
-        existing.additions += commit.additions ?? 0;
-        existing.deletions += commit.deletions ?? 0;
-        existing.firstCommitAt = Math.min(existing.firstCommitAt, commit.authoredAt);
-        existing.lastCommitAt = Math.max(existing.lastCommitAt, commit.authoredAt);
-        existing.classificationCounts.set(
-          commit.classification,
-          (existing.classificationCounts.get(commit.classification) ?? 0) + 1
-        );
-      } else {
-        const counts = new Map<string, number>();
-        counts.set(commit.classification, 1);
-        contributorMap.set(key, {
-          login: commit.authorLogin ?? undefined,
-          name: commit.authorName ?? undefined,
-          email: commit.authorEmail ?? undefined,
-          classificationCounts: counts,
-          commitCount: 1,
-          additions: commit.additions ?? 0,
-          deletions: commit.deletions ?? 0,
-          firstCommitAt: commit.authoredAt,
-          lastCommitAt: commit.authoredAt,
-        });
-      }
-    }
-
-    for (const contrib of contributorMap.values()) {
-      // Pick the classification with the most commits (majority vote)
-      let bestClassification = "human";
-      let bestCount = 0;
-      for (const [cls, count] of contrib.classificationCounts) {
-        if (count > bestCount) {
-          bestCount = count;
-          bestClassification = cls;
-        }
-      }
-
+    // 6. Insert new contributor stats
+    for (const contrib of args.contributorStats) {
       await ctx.db.insert("repoContributorStats", {
         repoId: args.repoId,
-        login: contrib.login,
-        name: contrib.name,
-        email: contrib.email,
-        classification: bestClassification,
-        commitCount: contrib.commitCount,
-        additions: contrib.additions,
-        deletions: contrib.deletions,
-        firstCommitAt: contrib.firstCommitAt,
-        lastCommitAt: contrib.lastCommitAt,
+        ...contrib,
       });
     }
 
-    // Persist granular tool/bot breakdown on the repo document.
-    // This runs while commits still exist — after this, commits are deleted.
-    const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns(commits);
-    await ctx.db.patch(args.repoId, { toolBreakdown, botBreakdown });
+    // 7. Persist tool/bot breakdown on the repo document
+    await ctx.db.patch(args.repoId, {
+      toolBreakdown: args.toolBreakdown,
+      botBreakdown: args.botBreakdown,
+    });
   },
 });
 
@@ -468,8 +262,8 @@ export const recomputeRepoStats = internalMutation({
  *
  * GitHub remains the source of truth for raw commit data — we only need
  * individual commits during the sync pipeline (insert → LOC enrichment →
- * PR classification → stats aggregation). Once recomputeRepoStats has
- * produced the weekly/contributor stats, the raw rows are no longer needed.
+ * PR classification → stats aggregation). Once writeRepoStats has
+ * persisted the weekly/contributor stats, the raw rows are no longer needed.
  *
  * Uses self-scheduling pagination (500 per batch) to avoid exceeding
  * Convex mutation time/operation limits on large repos.

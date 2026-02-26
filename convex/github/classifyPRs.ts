@@ -1,10 +1,13 @@
 "use node";
 
+import type { PaginationResult } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
+import { buildDetailedBreakdowns } from "../classification/detailedBreakdown";
 import { extractPRNumber } from "../classification/knownBots";
+import { computeStatsFromCommits } from "./statsComputation";
 
 /**
  * Post-processing step: checks PR metadata for squash/merge commits.
@@ -92,13 +95,42 @@ export const classifyPRs = internalAction({
       }
     }
 
-    // 5. Always finalize: transition to computing_stats, recompute, and mark synced
+    // 5. Compute repo stats — paginated reads to stay under 16 MB limit.
+    //    Each page reads ~500 commits (~500 KB), well under the 16 MB cap.
+    //    Stats are computed in action memory (no transaction limit).
     await ctx.runMutation(internal.github.ingestRepo.updateSyncProgress, {
       repoId: args.repoId,
       syncStage: "computing_stats",
     });
-    await ctx.runMutation(internal.github.ingestCommits.recomputeRepoStats, {
+
+    const allCommits: Doc<"commits">[] = [];
+    let isDone = false;
+    let cursor: string | null = null;
+    while (!isDone) {
+      const result: PaginationResult<Doc<"commits">> = await ctx.runQuery(
+        internal.github.ingestCommits.getCommitsBatch,
+        {
+          repoId: args.repoId,
+          paginationOpts: { numItems: 500, cursor },
+        }
+      );
+      allCommits.push(...result.page);
+      isDone = result.isDone;
+      cursor = result.continueCursor;
+    }
+
+    // Compute stats in action memory (pure functions, no Convex transaction)
+    const { weeklyStats, dailyStats, contributorStats } = computeStatsFromCommits(allCommits);
+    const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns(allCommits);
+
+    // Write pre-computed results (lean mutation — only deletes old stats + inserts new)
+    await ctx.runMutation(internal.github.ingestCommits.writeRepoStats, {
       repoId: args.repoId,
+      weeklyStats,
+      dailyStats,
+      contributorStats,
+      toolBreakdown,
+      botBreakdown,
     });
 
     // 6. Clean up individual commits — stats are now aggregated,
@@ -107,11 +139,17 @@ export const classifyPRs = internalAction({
       repoId: args.repoId,
     });
 
-    await ctx.runMutation(internal.github.ingestRepo.markSynced, {
+    // 7. Mark synced and conditionally recompute global stats.
+    //    Only recompute global stats when the LAST repo for this owner finishes,
+    //    preventing write conflicts from concurrent mutations on the same rows.
+    const { hasMorePending } = await ctx.runMutation(internal.github.ingestRepo.markSynced, {
       repoId: args.repoId,
       totalCommits: args.totalCommits,
     });
-    await ctx.runMutation(internal.mutations.recomputeGlobalStats.recomputeGlobalStats, {});
+
+    if (!hasMorePending) {
+      await ctx.runMutation(internal.mutations.recomputeGlobalStats.recomputeGlobalStats, {});
+    }
   },
 });
 
