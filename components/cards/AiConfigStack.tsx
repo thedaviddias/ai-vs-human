@@ -27,7 +27,9 @@ export function AiConfigStack({ configs }: AiConfigStackProps) {
       <div className="flex flex-wrap gap-2">
         {configs.map((config, index) => {
           const isSkill = config.tool === "skills.sh" || config.type === "Skill";
-          const skillUrl = isSkill ? `https://skills.sh/skill/${config.name}` : null;
+          const skillUrl = isSkill
+            ? `https://skills.sh/?q=${encodeURIComponent(config.name)}`
+            : null;
 
           const content = (
             <>

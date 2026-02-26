@@ -168,7 +168,9 @@ export function SkillsLeaderboardContent({ initialData }: { initialData: GlobalS
             {rows.map((row, index) => {
               const skill = row.original;
               const isSkill = skill.tool === "skills.sh" || skill.type === "Skill";
-              const skillUrl = isSkill ? `https://skills.sh/skill/${skill.name}` : null;
+              const skillUrl = isSkill
+                ? `https://skills.sh/?q=${encodeURIComponent(skill.name)}`
+                : null;
 
               return (
                 <tr
