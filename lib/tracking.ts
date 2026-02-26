@@ -22,6 +22,13 @@ type TrackingEvents = {
   system_share: { label: string; type: "user" | "repo" };
   // Embed
   copy_embed: { format: "markdown" | "html" };
+  // Leaderboards
+  leaderboard_view: { section: "index" | "developers" | "repos" | "ai-tools" | "bots" };
+  leaderboard_sort_change: {
+    section: "developers" | "repos";
+    sort: "stars" | "commits" | "followers" | "latest" | "owner";
+  };
+  leaderboard_metric_toggle: { section: "ai-tools"; metric: "commits" | "loc" };
 };
 
 export function trackEvent<T extends keyof TrackingEvents>(

@@ -45,6 +45,22 @@ describe("trackEvent", () => {
     });
   });
 
+  it("passes correct props for leaderboard events", () => {
+    trackEvent("leaderboard_view", { section: "developers" });
+    trackEvent("leaderboard_sort_change", { section: "developers", sort: "stars" });
+    trackEvent("leaderboard_metric_toggle", { section: "ai-tools", metric: "loc" });
+
+    expect(plausibleSpy).toHaveBeenCalledWith("leaderboard_view", {
+      props: { section: "developers" },
+    });
+    expect(plausibleSpy).toHaveBeenCalledWith("leaderboard_sort_change", {
+      props: { section: "developers", sort: "stars" },
+    });
+    expect(plausibleSpy).toHaveBeenCalledWith("leaderboard_metric_toggle", {
+      props: { section: "ai-tools", metric: "loc" },
+    });
+  });
+
   it("is a no-op when window is undefined (SSR)", () => {
     vi.stubGlobal("window", undefined);
 

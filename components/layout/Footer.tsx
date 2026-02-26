@@ -16,6 +16,12 @@ export function Footer() {
           </div>
           <div className="flex items-center gap-6 text-sm font-medium text-neutral-500">
             <Link
+              href="/leaderboard"
+              className="transition-colors hover:text-neutral-900 dark:hover:text-white"
+            >
+              Leaderboard
+            </Link>
+            <Link
               href="/docs/ranks"
               className="transition-colors hover:text-neutral-900 dark:hover:text-white"
             >

@@ -5,6 +5,7 @@ import { query } from "../_generated/server";
 interface OwnerAggregate {
   owner: string;
   repoCount: number;
+  totalStars: number;
   humanCommits: number;
   botCommits: number; // AI Assistants
   automationCommits: number; // Maintenance bots
@@ -43,6 +44,7 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
       owners.set(repo.owner, {
         owner: repo.owner,
         repoCount: 0,
+        totalStars: 0,
         humanCommits: 0,
         botCommits: 0,
         automationCommits: 0,
@@ -110,6 +112,7 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
     const existing = owners.get(repo.owner)!;
 
     existing.repoCount += 1;
+    existing.totalStars += repo.stars ?? 0;
     existing.humanCommits += repoHumanCommits;
     existing.botCommits += repoBotCommits;
     existing.automationCommits += repoAutomationCommits;
@@ -128,6 +131,7 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         owner: owner.owner,
         avatarUrl: `https://github.com/${owner.owner}.png?size=96`,
         repoCount: owner.repoCount,
+        totalStars: owner.totalStars,
         totalCommits: owner.totalCommits,
         humanCommits: owner.humanCommits,
         botCommits: owner.botCommits,
@@ -135,11 +139,18 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
         lastIndexedAt: owner.lastIndexedAt,
         isSyncing: owner.isSyncing,
         // Commit-based percentages (primary, following GitHub convention)
-        humanPercentage: formatPercentage((owner.humanCommits / owner.totalCommits) * 100),
-        botPercentage: formatPercentage((owner.botCommits / owner.totalCommits) * 100),
-        automationPercentage: formatPercentage(
-          (owner.automationCommits / owner.totalCommits) * 100
-        ),
+        humanPercentage:
+          owner.totalCommits > 0
+            ? formatPercentage((owner.humanCommits / owner.totalCommits) * 100)
+            : "0",
+        botPercentage:
+          owner.totalCommits > 0
+            ? formatPercentage((owner.botCommits / owner.totalCommits) * 100)
+            : "0",
+        automationPercentage:
+          owner.totalCommits > 0
+            ? formatPercentage((owner.automationCommits / owner.totalCommits) * 100)
+            : "0",
       };
     })
     .sort(

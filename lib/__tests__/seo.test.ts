@@ -123,5 +123,10 @@ describe("seo helpers", () => {
 
     expect(urls).toContain("https://aivshuman.thedaviddias.com/octocat");
     expect(urls).toContain("https://aivshuman.thedaviddias.com/octocat/hello-world");
+    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard");
+    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/developers");
+    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/repos");
+    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/ai-tools");
+    expect(urls).toContain("https://aivshuman.thedaviddias.com/leaderboard/bots");
   });
 });

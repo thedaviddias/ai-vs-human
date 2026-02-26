@@ -242,6 +242,134 @@ export const getMultiRepoDetailedBreakdown = query({
   },
 });
 
+export const getGlobalToolLeaderboards = query({
+  args: {},
+  handler: async (ctx) => {
+    const repos = await ctx.db
+      .query("repos")
+      .withIndex("by_syncStatus", (q) => q.eq("syncStatus", "synced"))
+      .collect();
+
+    const aiMap = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        commits: number;
+        additions: number;
+        repoIds: Set<string>;
+        owners: Set<string>;
+      }
+    >();
+    const botMap = new Map<
+      string,
+      {
+        key: string;
+        label: string;
+        commits: number;
+        repoIds: Set<string>;
+        owners: Set<string>;
+      }
+    >();
+
+    for (const repo of repos) {
+      let fallback: {
+        toolBreakdown: Array<{ key: string; label: string; commits: number; additions: number }>;
+        botBreakdown: Array<{ key: string; label: string; commits: number }>;
+      } | null = null;
+
+      if (!repo.toolBreakdown || !repo.botBreakdown) {
+        const stats = await ctx.db
+          .query("repoWeeklyStats")
+          .withIndex("by_repo", (q) => q.eq("repoId", repo._id))
+          .collect();
+        fallback = buildBreakdownFromStats(stats as Array<Record<string, number | string>>);
+      }
+
+      const repoTools = filterValidToolBreakdown(
+        repo.toolBreakdown ?? fallback?.toolBreakdown ?? []
+      );
+      const repoBots = repo.botBreakdown ?? fallback?.botBreakdown ?? [];
+      const repoId = repo.fullName;
+      const owner = repo.owner;
+
+      for (const tool of repoTools) {
+        const existing = aiMap.get(tool.key);
+        if (existing) {
+          existing.commits += tool.commits;
+          existing.additions += tool.additions;
+          existing.repoIds.add(repoId);
+          existing.owners.add(owner);
+          continue;
+        }
+
+        aiMap.set(tool.key, {
+          key: tool.key,
+          label: tool.label,
+          commits: tool.commits,
+          additions: tool.additions,
+          repoIds: new Set([repoId]),
+          owners: new Set([owner]),
+        });
+      }
+
+      for (const bot of repoBots) {
+        const existing = botMap.get(bot.key);
+        if (existing) {
+          existing.commits += bot.commits;
+          existing.repoIds.add(repoId);
+          existing.owners.add(owner);
+          continue;
+        }
+
+        botMap.set(bot.key, {
+          key: bot.key,
+          label: bot.label,
+          commits: bot.commits,
+          repoIds: new Set([repoId]),
+          owners: new Set([owner]),
+        });
+      }
+    }
+
+    const aiTools = Array.from(aiMap.values())
+      .map((entry) => ({
+        key: entry.key,
+        label: entry.label,
+        commits: entry.commits,
+        additions: entry.additions,
+        repoCount: entry.repoIds.size,
+        ownerCount: entry.owners.size,
+      }))
+      .sort(
+        (a, b) =>
+          b.commits - a.commits ||
+          b.additions - a.additions ||
+          b.repoCount - a.repoCount ||
+          b.ownerCount - a.ownerCount ||
+          a.label.localeCompare(b.label)
+      );
+
+    const bots = Array.from(botMap.values())
+      .map((entry) => ({
+        key: entry.key,
+        label: entry.label,
+        commits: entry.commits,
+        repoCount: entry.repoIds.size,
+        ownerCount: entry.owners.size,
+      }))
+      .sort(
+        (a, b) =>
+          b.commits - a.commits ||
+          b.repoCount - a.repoCount ||
+          b.ownerCount - a.ownerCount ||
+          a.label.localeCompare(b.label)
+      );
+
+    return { aiTools, bots };
+  },
+});
+
 /** Strip persisted entries that contain human usernames mistakenly stored as AI tools. */
 function filterValidToolBreakdown(
   entries: Array<{ key: string; label: string; commits: number; additions: number }>

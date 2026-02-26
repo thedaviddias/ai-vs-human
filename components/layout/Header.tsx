@@ -38,6 +38,12 @@ export function Header() {
             </svg>
           </a>
           <Link
+            href="/leaderboard"
+            className="text-sm font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
+          >
+            Leaderboard
+          </Link>
+          <Link
             href="/docs"
             className="text-sm font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
           >
