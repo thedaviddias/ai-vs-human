@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { QueryCtx } from "../_generated/server";
 import { query } from "../_generated/server";
+import { computeMergedUserStats, formatPercentage, shouldMergePrivateData } from "./userHelpers";
 
 interface OwnerAggregate {
   owner: string;
@@ -16,15 +17,6 @@ interface OwnerAggregate {
   totalAdditions: number;
   lastIndexedAt: number;
   isSyncing: boolean;
-}
-
-function formatPercentage(value: number): string {
-  if (value === 0) return "0";
-  if (value < 0.1) {
-    const formatted = value.toFixed(2);
-    return formatted.endsWith("0") ? value.toFixed(1) : formatted;
-  }
-  return value.toFixed(1);
 }
 
 async function getIndexedUsersHelper(ctx: QueryCtx) {
@@ -172,6 +164,7 @@ export const getIndexedUsers = query({
 /**
  * Merges private aggregate stats into a user object returned by getIndexedUsersHelper.
  * Only aggregate numbers are read — no repo names, SHAs, or messages.
+ * Delegates pure computation to computeMergedUserStats (tested in mergePrivateStats.test.ts).
  */
 async function mergePrivateStatsIntoUser(
   ctx: QueryCtx,
@@ -182,40 +175,12 @@ async function mergePrivateStatsIntoUser(
     .withIndex("by_login", (q) => q.eq("githubLogin", user.owner))
     .collect();
 
-  if (privateDailyStats.length === 0) return user;
-
-  let privateHuman = 0;
-  let privateAi = 0;
-  let privateAutomation = 0;
-  for (const day of privateDailyStats) {
-    privateHuman += day.human;
-    privateAi += day.ai;
-    privateAutomation += day.automation;
-  }
-
-  const mergedHuman = user.humanCommits + privateHuman;
-  const mergedBot = user.botCommits + privateAi;
-  const mergedAutomation = user.automationCommits + privateAutomation;
-  const mergedTotal = mergedHuman + mergedBot + mergedAutomation;
-
-  return {
-    ...user,
-    humanCommits: mergedHuman,
-    botCommits: mergedBot,
-    automationCommits: mergedAutomation,
-    totalCommits: mergedTotal,
-    humanPercentage: mergedTotal > 0 ? formatPercentage((mergedHuman / mergedTotal) * 100) : "0",
-    botPercentage: mergedTotal > 0 ? formatPercentage((mergedBot / mergedTotal) * 100) : "0",
-    automationPercentage:
-      mergedTotal > 0 ? formatPercentage((mergedAutomation / mergedTotal) * 100) : "0",
-  };
+  return computeMergedUserStats(user, privateDailyStats);
 }
 
 export const getIndexedUsersWithProfiles = query({
-  args: {
-    publicOnly: v.optional(v.boolean()),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const users = await getIndexedUsersHelper(ctx);
     const result = [];
 
@@ -226,11 +191,15 @@ export const getIndexedUsersWithProfiles = query({
         .unique();
 
       const hasPrivateData = profile?.hasPrivateData === true;
-      const showPublicly = profile?.showPrivateDataPublicly !== false; // undefined = true (default)
 
-      // Merge private stats for cards only when user opts to show publicly AND we don't strictly want public-only
+      // Use tested helper to determine merge eligibility
+      const shouldMerge = shouldMergePrivateData({
+        hasPrivateData,
+        showPrivateDataPublicly: profile?.showPrivateDataPublicly,
+      });
+
       let mergedUser = user;
-      if (hasPrivateData && showPublicly && !args.publicOnly) {
+      if (shouldMerge) {
         mergedUser = await mergePrivateStatsIntoUser(ctx, user);
       }
 
@@ -527,11 +496,14 @@ export const getRelatedRecentUsers = query({
         .unique();
 
       const hasPrivateData = profile?.hasPrivateData === true;
-      const showPublicly = profile?.showPrivateDataPublicly !== false; // undefined = true (default)
 
-      // Merge private stats for consistent card display only when user opts to show publicly
+      const shouldMerge = shouldMergePrivateData({
+        hasPrivateData,
+        showPrivateDataPublicly: profile?.showPrivateDataPublicly,
+      });
+
       let mergedUser = user;
-      if (hasPrivateData && showPublicly) {
+      if (shouldMerge) {
         mergedUser = await mergePrivateStatsIntoUser(ctx, user);
       }
 
