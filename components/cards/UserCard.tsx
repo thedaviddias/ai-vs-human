@@ -176,7 +176,7 @@ export function UserCard({
             </span>
             <span className="text-sm font-bold text-neutral-200">
               {formatCompactNumber(repoCount)}
-              {isSyncing && "+"}
+              {(isSyncing || hasPrivateData) && "+"}
             </span>
           </div>
         </div>

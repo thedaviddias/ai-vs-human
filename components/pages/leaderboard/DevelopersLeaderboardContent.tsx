@@ -107,8 +107,7 @@ export function DevelopersLeaderboardContent({
 }: {
   initialUsers: IndexedUserData[];
 }) {
-  const users =
-    useQuery(api.queries.users.getIndexedUsersWithProfiles, { publicOnly: true }) ?? initialUsers;
+  const users = useQuery(api.queries.users.getIndexedUsersWithProfiles, {}) ?? initialUsers;
   const [sortMode, setSortMode] = useQueryState(
     "sort",
     parseAsStringLiteral(sortModes).withDefault("stars").withOptions({ scroll: false })
@@ -260,6 +259,7 @@ export function DevelopersLeaderboardContent({
                   </td>
                   <td className="px-4 py-3 text-neutral-300">
                     {formatCompactNumber(user.repoCount)}
+                    {user.hasPrivateData && "+"}
                   </td>
                   <td className="px-4 py-3">
                     <HumanAiBadges
@@ -325,6 +325,7 @@ export function DevelopersLeaderboardContent({
                 <div>
                   <span className="text-neutral-500">Repos</span>{" "}
                   {formatCompactNumber(user.repoCount)}
+                  {user.hasPrivateData && "+"}
                 </div>
               </div>
               <div className="mt-3">

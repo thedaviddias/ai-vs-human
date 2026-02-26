@@ -19,15 +19,15 @@ export const metadata = createMetadata({
 
 export default async function LeaderboardIndexPage() {
   const [users, repos, toolData] = await Promise.all([
-    fetchQuery(api.queries.users.getIndexedUsersWithProfiles, { publicOnly: true }),
+    fetchQuery(api.queries.users.getIndexedUsersWithProfiles, {}),
     fetchQuery(api.queries.repos.getIndexedRepos),
     fetchQuery(api.queries.stats.getGlobalToolLeaderboards),
   ]);
 
   const topDeveloper = [...users].sort(
     (a, b) =>
-      (b.totalStars ?? 0) - (a.totalStars ?? 0) ||
-      b.totalCommits - a.totalCommits ||
+      (b.publicTotalStars ?? b.totalStars ?? 0) - (a.publicTotalStars ?? a.totalStars ?? 0) ||
+      (b.publicTotalCommits ?? b.totalCommits) - (a.publicTotalCommits ?? a.totalCommits) ||
       a.owner.localeCompare(b.owner)
   )[0];
   const topRepo = repos[0];
@@ -40,7 +40,7 @@ export default async function LeaderboardIndexPage() {
       href: "/leaderboard/developers",
       value: users.length.toLocaleString(),
       subtitle: topDeveloper
-        ? `Top by stars: @${topDeveloper.owner} (${topDeveloper.totalStars.toLocaleString()})`
+        ? `Top by stars: @${topDeveloper.owner} (${(topDeveloper.publicTotalStars ?? topDeveloper.totalStars).toLocaleString()})`
         : "No indexed developers yet.",
     },
     {

@@ -40,6 +40,7 @@ interface IndexedUserData {
   repoCount: number;
   lastIndexedAt: number;
   isSyncing: boolean;
+  hasPrivateData?: boolean;
   profile?: {
     name?: string | null;
     followers?: number;
@@ -306,6 +307,7 @@ export function HomeContent({
                     repoCount={user.repoCount}
                     lastIndexedAt={user.lastIndexedAt}
                     isSyncing={user.isSyncing}
+                    hasPrivateData={user.hasPrivateData}
                   />
                 );
               })}
