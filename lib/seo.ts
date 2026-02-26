@@ -7,7 +7,7 @@ const SEO_CONFIG = {
   authorUrl: "https://thedaviddias.com",
   xHandle: "@thedaviddias",
   defaultOGImage: "/api/og/global",
-  ogImageVersion: "1", // bump to force Twitter/X card image cache refresh
+  ogImageVersion: "2", // bump to force Twitter/X card image cache refresh
 } as const;
 
 export const DEFAULT_KEYWORDS: string[] = [
