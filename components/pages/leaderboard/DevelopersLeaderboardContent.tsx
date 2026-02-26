@@ -2,7 +2,6 @@
 
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "convex/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -109,7 +108,6 @@ export function DevelopersLeaderboardContent({
     parseAsStringLiteral(sortModes).withDefault("stars")
   );
   const hasTrackedInitialSort = useRef(false);
-  const desktopScrollRef = useRef<HTMLDivElement>(null);
   const [sorting, setSorting] = useState<SortingState>(() => modeToSorting(sortMode));
 
   useEffect(() => {
@@ -143,15 +141,6 @@ export function DevelopersLeaderboardContent({
   });
 
   const rows = table.getRowModel().rows;
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => desktopScrollRef.current,
-    estimateSize: () => 62,
-    overscan: 10,
-  });
-  const virtualRows = rowVirtualizer.getVirtualItems();
-
   const sortColumns = useMemo(
     () => ({
       stars: table.getColumn("totalStars"),
@@ -186,16 +175,7 @@ export function DevelopersLeaderboardContent({
       </div>
 
       <div className="hidden overflow-hidden rounded-xl border border-neutral-800 lg:block">
-        <table className="w-full table-fixed text-sm">
-          <colgroup>
-            <col style={{ width: "56px" }} />
-            <col style={{ width: "30%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "12%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "24%" }} />
-            <col style={{ width: "12%" }} />
-          </colgroup>
+        <table className="w-full text-sm">
           <thead className="bg-neutral-900/70 text-left text-xs uppercase tracking-widest text-neutral-500">
             <tr>
               <th className="px-4 py-3">#</th>
@@ -231,81 +211,59 @@ export function DevelopersLeaderboardContent({
               </th>
             </tr>
           </thead>
-        </table>
-
-        <div ref={desktopScrollRef} className="max-h-[680px] overflow-auto">
-          <table className="w-full table-fixed text-sm">
-            <colgroup>
-              <col style={{ width: "56px" }} />
-              <col style={{ width: "30%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "24%" }} />
-              <col style={{ width: "12%" }} />
-            </colgroup>
-            <tbody
-              className="relative block"
-              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-            >
-              {virtualRows.map((virtualRow) => {
-                const row = rows[virtualRow.index];
-                const user = row.original;
-
-                return (
-                  <tr
-                    key={row.id}
-                    className="absolute left-0 top-0 table w-full table-fixed border-t border-neutral-800/80 hover:bg-neutral-900/40"
-                    style={{ transform: `translateY(${virtualRow.start}px)` }}
-                  >
-                    <td className="px-4 py-3 font-semibold text-neutral-400">
-                      {virtualRow.index + 1}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/${encodeURIComponent(user.owner)}`}
-                        className="flex items-center gap-3 text-white hover:text-neutral-200"
-                      >
-                        <Image
-                          src={user.profile?.avatarUrl ?? user.avatarUrl}
-                          alt={`${user.owner} avatar`}
-                          width={32}
-                          height={32}
-                          className="h-8 w-8 rounded-full border border-neutral-700"
-                        />
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold">
-                            {user.profile?.name ?? user.owner}
-                          </div>
-                          <div className="truncate text-xs text-neutral-500">@{user.owner}</div>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-amber-300">
-                      {formatCompactNumber(user.totalStars)}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-neutral-200">
-                      {formatCompactNumber(user.totalCommits)}
-                    </td>
-                    <td className="px-4 py-3 text-neutral-300">
-                      {formatCompactNumber(user.repoCount)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <HumanAiBadges
-                        humanPercentage={user.humanPercentage}
-                        aiPercentage={user.botPercentage}
-                        automationPercentage={user.automationPercentage}
+          <tbody>
+            {rows.map((row, index) => {
+              const user = row.original;
+              return (
+                <tr
+                  key={user.owner}
+                  className="border-t border-neutral-800/80 hover:bg-neutral-900/40"
+                >
+                  <td className="px-4 py-3 font-semibold text-neutral-400">{index + 1}</td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/${encodeURIComponent(user.owner)}`}
+                      className="flex items-center gap-3 text-white hover:text-neutral-200"
+                    >
+                      <Image
+                        src={user.profile?.avatarUrl ?? user.avatarUrl}
+                        alt={`${user.owner} avatar`}
+                        width={32}
+                        height={32}
+                        className="h-8 w-8 rounded-full border border-neutral-700"
                       />
-                    </td>
-                    <td className="px-4 py-3 text-neutral-400">
-                      {formatDateTime(user.lastIndexedAt)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold">
+                          {user.profile?.name ?? user.owner}
+                        </div>
+                        <div className="truncate text-xs text-neutral-500">@{user.owner}</div>
+                      </div>
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-amber-300">
+                    {formatCompactNumber(user.totalStars)}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-neutral-200">
+                    {formatCompactNumber(user.totalCommits)}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-300">
+                    {formatCompactNumber(user.repoCount)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <HumanAiBadges
+                      humanPercentage={user.humanPercentage}
+                      aiPercentage={user.botPercentage}
+                      automationPercentage={user.automationPercentage}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-neutral-400">
+                    {formatDateTime(user.lastIndexedAt)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       <div className="space-y-3 lg:hidden">
