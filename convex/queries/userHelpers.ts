@@ -2,6 +2,10 @@
  * Pure computation helpers for user stats merging.
  * Extracted from users.ts so they can be tested without a DB context.
  */
+import { ConvexError } from "convex/values";
+import type { QueryCtx } from "../_generated/server";
+import { authComponent } from "../auth";
+import { resolveGitHubLogin } from "../lib/authHelpers";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -95,4 +99,46 @@ export function shouldMergePrivateData(profile: {
   if (!profile.hasPrivateData) return false;
   // undefined means the user has never toggled → default to showing publicly
   return profile.showPrivateDataPublicly !== false;
+}
+
+// ─── requirePrivateDataAccess ────────────────────────────────────
+
+/**
+ * Enforces authorization for private data access.
+ * Throws an error if the user is not authorized to view the data.
+ */
+export async function requirePrivateDataAccess(ctx: QueryCtx, githubLogin: string) {
+  const profile = await ctx.db
+    .query("profiles")
+    .withIndex("by_owner", (q) => q.eq("owner", githubLogin))
+    .unique();
+
+  // If the user hasn't explicitly set this to false, it defaults to true (publicly visible)
+  if (profile?.showPrivateDataPublicly !== false) {
+    return true;
+  }
+
+  // If it is false, we must verify the requesting user is the owner
+  let user: {
+    username?: string | null;
+    email: string;
+    name: string;
+    image?: string | null;
+  } | null = null;
+  try {
+    user = await authComponent.getAuthUser(ctx);
+  } catch {
+    throw new ConvexError("Unauthorized: Private data is not public. Please sign in.");
+  }
+
+  if (!user) {
+    throw new ConvexError("Unauthorized: Private data is not public. Please sign in.");
+  }
+
+  const requestingLogin = await resolveGitHubLogin(ctx, user);
+  if (requestingLogin?.toLowerCase() !== githubLogin.toLowerCase()) {
+    throw new ConvexError("Unauthorized: You do not have permission to view this private data.");
+  }
+
+  return true;
 }

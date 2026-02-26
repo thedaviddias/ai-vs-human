@@ -180,6 +180,8 @@ async function mergePrivateStatsIntoUser(
   return computeMergedUserStats(user, privateDailyStats);
 }
 
+import { requirePrivateDataAccess } from "./userHelpers";
+
 export const getIndexedUsersWithProfiles = query({
   args: {},
   handler: async (ctx) => {
@@ -399,6 +401,7 @@ export const getUserByOwner = query({
 export const getUserByOwnerWithPrivateData = query({
   args: { owner: v.string() },
   handler: async (ctx, args) => {
+    await requirePrivateDataAccess(ctx, args.owner);
     const baseUser = await getUserByOwnerHelper(ctx, args.owner);
     if (!baseUser) return null;
 

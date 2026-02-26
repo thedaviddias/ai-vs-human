@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
+import { requirePrivateDataAccess } from "./userHelpers";
 
 /**
  * Returns the private data sync status for a GitHub user.
@@ -21,6 +22,7 @@ export const getUserPrivateSyncStatus = query({
 export const getUserPrivateDailyStats = query({
   args: { githubLogin: v.string() },
   handler: async (ctx, { githubLogin }) => {
+    await requirePrivateDataAccess(ctx, githubLogin);
     return ctx.db
       .query("userPrivateDailyStats")
       .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
@@ -34,6 +36,7 @@ export const getUserPrivateDailyStats = query({
 export const getUserPrivateWeeklyStats = query({
   args: { githubLogin: v.string() },
   handler: async (ctx, { githubLogin }) => {
+    await requirePrivateDataAccess(ctx, githubLogin);
     return ctx.db
       .query("userPrivateWeeklyStats")
       .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
