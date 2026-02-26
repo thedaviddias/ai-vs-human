@@ -1,10 +1,6 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
-import {
-  UNKNOWN_AI_KEY,
-  UNKNOWN_AI_LABEL,
-  UNKNOWN_AUTOMATION_LABEL,
-} from "../classification/attributionMappings";
+import { UNKNOWN_AUTOMATION_LABEL } from "../classification/attributionMappings";
 import { KNOWN_AI_TOOL_KEYS } from "../classification/detailedBreakdown";
 
 /** AI tool mapping: weekly-stats field → display key/label */
@@ -26,12 +22,10 @@ const AI_TOOL_FIELDS = [
     label: "OpenAI Codex",
   },
   { field: "gemini", additionsField: "geminiAdditions", key: "gemini", label: "Gemini" },
-  {
-    field: "aiAssisted",
-    additionsField: "aiAssistedAdditions",
-    key: UNKNOWN_AI_KEY,
-    label: UNKNOWN_AI_LABEL,
-  },
+  // NOTE: "aiAssisted" is intentionally omitted. It's a generic catch-all
+  // that can't be attributed to a specific tool, so it should not appear
+  // in breakdowns. Those commits are still counted in overall AI percentages
+  // via the raw weekly-stats totals.
 ] as const;
 
 const BOT_FIELDS = [

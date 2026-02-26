@@ -287,6 +287,8 @@ export const KNOWN_AI_TOOL_KEYS: ReadonlySet<string> = new Set([
   ...DETAILED_AI_PATTERNS.map((p) => p.match.key),
   // Backward-compat key preserved from previous classifier output
   "sentry-ai-reviewer",
-  // Generic fallback
-  UNKNOWN_AI_KEY,
+  // NOTE: UNKNOWN_AI_KEY is intentionally excluded.
+  // Commits that can't be attributed to a specific tool should not
+  // appear in leaderboards or breakdowns as "Unknown AI Assistant".
+  // They are still counted in overall AI% via repoWeeklyStats.
 ]);
