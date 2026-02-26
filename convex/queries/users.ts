@@ -394,6 +394,73 @@ export const getUserByOwner = query({
 });
 
 /**
+ * Merges private daily stats into a user's public data, recalculating
+ * totals, percentages, and the daily heatmap.
+ *
+ * Shared by both the auth-gated `getUserByOwnerWithPrivateData` (owner
+ * downloads) and the public `getUserByOwnerWithPublicPrivateData` (OG
+ * images for users who opted in to public visibility).
+ */
+function mergePrivateDailyStatsIntoUser(
+  baseUser: NonNullable<Awaited<ReturnType<typeof getUserByOwnerHelper>>>,
+  privateDailyStats: Array<{
+    date: number;
+    human: number;
+    ai: number;
+    automation: number;
+  }>
+) {
+  if (privateDailyStats.length === 0) return baseUser;
+
+  const dailyMap = new Map(baseUser.dailyData.map((d) => [d.date, { ...d }]));
+
+  let privateHuman = 0;
+  let privateAi = 0;
+  let privateAutomation = 0;
+
+  for (const priv of privateDailyStats) {
+    privateHuman += priv.human;
+    privateAi += priv.ai;
+    privateAutomation += priv.automation;
+
+    const existing = dailyMap.get(priv.date);
+    if (existing) {
+      existing.human += priv.human;
+      existing.ai += priv.ai;
+      existing.automation += priv.automation;
+    } else {
+      dailyMap.set(priv.date, {
+        date: priv.date,
+        human: priv.human,
+        ai: priv.ai,
+        automation: priv.automation,
+        humanAdditions: 0,
+        aiAdditions: 0,
+        automationAdditions: 0,
+      });
+    }
+  }
+
+  const mergedHuman = baseUser.humanCommits + privateHuman;
+  const mergedAi = baseUser.aiCommits + privateAi;
+  const mergedAutomation = baseUser.automationCommits + privateAutomation;
+  const mergedTotal = mergedHuman + mergedAi + mergedAutomation;
+
+  return {
+    ...baseUser,
+    humanCommits: mergedHuman,
+    aiCommits: mergedAi,
+    automationCommits: mergedAutomation,
+    totalCommits: mergedTotal,
+    humanPercentage: mergedTotal > 0 ? formatPercentage((mergedHuman / mergedTotal) * 100) : "0",
+    aiPercentage: mergedTotal > 0 ? formatPercentage((mergedAi / mergedTotal) * 100) : "0",
+    automationPercentage:
+      mergedTotal > 0 ? formatPercentage((mergedAutomation / mergedTotal) * 100) : "0",
+    dailyData: Array.from(dailyMap.values()).sort((a, b) => a.date - b.date),
+  };
+}
+
+/**
  * Returns user data with private daily stats merged into dailyData.
  * Used by the private OG image route to generate an image that includes
  * the owner's private activity for personal sharing/download.
@@ -410,57 +477,53 @@ export const getUserByOwnerWithPrivateData = query({
       .withIndex("by_login", (q) => q.eq("githubLogin", args.owner))
       .collect();
 
-    if (privateDailyStats.length === 0) return baseUser;
+    return mergePrivateDailyStatsIntoUser(baseUser, privateDailyStats);
+  },
+});
 
-    // Merge private daily stats into the public dailyData for heatmap
-    const dailyMap = new Map(baseUser.dailyData.map((d) => [d.date, { ...d }]));
+/**
+ * Returns user data with private stats merged IF the user has opted in
+ * to public visibility (`showPrivateDataPublicly !== false`).
+ *
+ * Does NOT require auth — used by the OG image route which is fetched
+ * by unauthenticated crawlers (Twitter/X, Slack, Discord, etc.).
+ *
+ * Security: only aggregate numbers (commit counts/percentages) are
+ * exposed. The user controls visibility via their profile toggle.
+ * Same pattern as `getIndexedUsersWithProfiles`.
+ */
+export const getUserByOwnerWithPublicPrivateData = query({
+  args: { owner: v.string() },
+  handler: async (ctx, args) => {
+    const baseUser = await getUserByOwnerHelper(ctx, args.owner);
+    if (!baseUser) return null;
 
-    let privateHuman = 0;
-    let privateAi = 0;
-    let privateAutomation = 0;
+    const profile = await ctx.db
+      .query("profiles")
+      .withIndex("by_owner", (q) => q.eq("owner", args.owner))
+      .unique();
 
-    for (const priv of privateDailyStats) {
-      privateHuman += priv.human;
-      privateAi += priv.ai;
-      privateAutomation += priv.automation;
+    const shouldMerge = shouldMergePrivateData({
+      hasPrivateData: profile?.hasPrivateData === true,
+      showPrivateDataPublicly: profile?.showPrivateDataPublicly,
+    });
 
-      const existing = dailyMap.get(priv.date);
-      if (existing) {
-        existing.human += priv.human;
-        existing.ai += priv.ai;
-        existing.automation += priv.automation;
-      } else {
-        dailyMap.set(priv.date, {
-          date: priv.date,
-          human: priv.human,
-          ai: priv.ai,
-          automation: priv.automation,
-          humanAdditions: 0,
-          aiAdditions: 0,
-          automationAdditions: 0,
-        });
-      }
+    if (!shouldMerge) {
+      return { ...baseUser, includesPrivateData: false as const };
     }
 
-    // Recalculate merged totals and percentages
-    const mergedHuman = baseUser.humanCommits + privateHuman;
-    const mergedAi = baseUser.aiCommits + privateAi;
-    const mergedAutomation = baseUser.automationCommits + privateAutomation;
-    const mergedTotal = mergedHuman + mergedAi + mergedAutomation;
+    const privateDailyStats = await ctx.db
+      .query("userPrivateDailyStats")
+      .withIndex("by_login", (q) => q.eq("githubLogin", args.owner))
+      .collect();
 
-    const mergedDailyData = Array.from(dailyMap.values()).sort((a, b) => a.date - b.date);
+    if (privateDailyStats.length === 0) {
+      return { ...baseUser, includesPrivateData: false as const };
+    }
 
     return {
-      ...baseUser,
-      humanCommits: mergedHuman,
-      aiCommits: mergedAi,
-      automationCommits: mergedAutomation,
-      totalCommits: mergedTotal,
-      humanPercentage: mergedTotal > 0 ? formatPercentage((mergedHuman / mergedTotal) * 100) : "0",
-      aiPercentage: mergedTotal > 0 ? formatPercentage((mergedAi / mergedTotal) * 100) : "0",
-      automationPercentage:
-        mergedTotal > 0 ? formatPercentage((mergedAutomation / mergedTotal) * 100) : "0",
-      dailyData: mergedDailyData,
+      ...mergePrivateDailyStatsIntoUser(baseUser, privateDailyStats),
+      includesPrivateData: true as const,
     };
   },
 });

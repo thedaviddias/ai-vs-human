@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
     // Parallel fetch: User stats from Convex + User profile from GitHub
     const [user, githubUser] = await Promise.all([
-      fetchQuery(api.queries.users.getUserByOwner, { owner }),
+      fetchQuery(api.queries.users.getUserByOwnerWithPublicPrivateData, { owner }),
       fetch(`https://api.github.com/users/${owner}`)
         .then((res) => (res.ok ? (res.json() as Promise<{ name: string | null }>) : null))
         .catch((err) => {
@@ -49,11 +49,15 @@ export async function GET(request: Request) {
 
     const displayName = githubUser?.name || user.owner;
 
-    return new ImageResponse(renderUserOgImage({ user, displayName }), {
+    const includesPrivateData = user.includesPrivateData === true;
+    // Shorter cache when private data is included so privacy-toggle changes propagate faster
+    const cacheTtl = includesPrivateData ? 30 : 60;
+
+    return new ImageResponse(renderUserOgImage({ user, displayName, includesPrivateData }), {
       width: 1200,
       height: 630,
       headers: {
-        "cache-control": "public, max-age=60, s-maxage=60",
+        "cache-control": `public, max-age=${cacheTtl}, s-maxage=${cacheTtl}`,
       },
     });
   } catch (e) {
