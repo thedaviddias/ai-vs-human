@@ -158,13 +158,13 @@ export function StatsSummary({
     : "";
 
   const hasPrivateEnrichment = privateCommitCount != null && privateCommitCount > 0;
-  // totalCommits already includes private data (merged upstream in aggregated stats).
-  // No need to add privateCommitCount again — it's shown as a "incl." badge instead.
-  const displayedTotal = totalCommits;
+  // totalCommits reflects public repo data only (from repoWeeklyStats).
+  // privateCommitCount is a separate tally from userPrivateDailyStats.
+  // Sum them to show the true combined total.
+  const displayedTotal = hasPrivateEnrichment ? totalCommits + privateCommitCount : totalCommits;
 
-  const publicCommitCount = hasPrivateEnrichment ? totalCommits - privateCommitCount : totalCommits;
   const totalCommitsTooltip = hasPrivateEnrichment
-    ? `${formatNumber(publicCommitCount)} public + ${formatNumber(privateCommitCount)} private commits across ${
+    ? `${formatNumber(totalCommits)} public + ${formatNumber(privateCommitCount)} private commits across ${
         repoCount ? `${repoCount} public repositories` : "the selected repositories"
       } plus private repos. Only aggregate counts are stored for private repos.`
     : `Total analyzed activity across ${
