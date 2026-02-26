@@ -15,7 +15,7 @@ export function NotificationModal({ isOpen, onClose, onConfirm }: NotificationMo
   const [permission, setPermission] = useState<NotificationPermission>("default");
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && "Notification" in window) {
       setPermission(Notification.permission);
     }
   }, []);
@@ -35,6 +35,11 @@ export function NotificationModal({ isOpen, onClose, onConfirm }: NotificationMo
 
   const handleConfirm = async () => {
     playClick();
+    if (typeof Notification === "undefined") {
+      onConfirm();
+      handleClose();
+      return;
+    }
     if (Notification.permission !== "granted") {
       const result = await Notification.requestPermission();
       setPermission(result);

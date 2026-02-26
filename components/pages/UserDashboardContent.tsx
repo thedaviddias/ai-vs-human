@@ -452,7 +452,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   useEffect(() => {
     if (prevSyncingRef.current && !isSyncInProgress && wantsNotification) {
-      if (Notification.permission === "granted") {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
         new Notification("Analysis Ready! 🚀", {
           body: `@${owner}'s contribution breakdown is now available.`,
           icon: "/icon.png",
