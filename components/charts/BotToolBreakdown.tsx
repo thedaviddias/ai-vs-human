@@ -30,6 +30,8 @@ const BotIcons: Record<string, React.ComponentType<{ className?: string; size?: 
   codecov: SiCodecov,
   sonarcloud: SiSonar,
   vercel: SiVercel,
+  v1: SiVercel,
+  "bot-v1": SiVercel,
   netlify: SiNetlify,
 };
 
@@ -43,6 +45,8 @@ const BOT_COLORS: Record<string, string> = {
   codecov: "text-[#F01F7A]",
   sonarcloud: "text-[#F3702A]",
   vercel: "text-white",
+  v1: "text-white",
+  "bot-v1": "text-white",
   netlify: "text-[#00C7B7]",
 };
 
@@ -61,6 +65,8 @@ const BOT_URLS: Record<string, string> = {
   "release-please": "https://github.com/googleapis/release-please",
   mergify: "https://mergify.com",
   vercel: "https://vercel.com",
+  v1: "https://vercel.com",
+  "bot-v1": "https://vercel.com",
   netlify: "https://netlify.com",
   changesets: "https://github.com/changesets/changesets",
   kodiak: "https://kodiakhq.com",
