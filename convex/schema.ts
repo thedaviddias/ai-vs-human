@@ -125,7 +125,8 @@ export default defineSchema({
     lastCommitAt: v.number(),
   })
     .index("by_repo", ["repoId"])
-    .index("by_repo_and_commits", ["repoId", "commitCount"]),
+    .index("by_repo_and_commits", ["repoId", "commitCount"])
+    .index("by_email", ["email"]),
 
   globalWeeklyStats: defineTable({
     weekStart: v.number(),
@@ -211,5 +212,78 @@ export default defineSchema({
     avatarUrl: v.string(),
     followers: v.number(),
     lastUpdated: v.number(),
-  }).index("by_owner", ["owner"]),
+    hasPrivateData: v.optional(v.boolean()),
+    /** Whether private activity is visible to public visitors. undefined = true (default on). */
+    showPrivateDataPublicly: v.optional(v.boolean()),
+  })
+    .index("by_owner", ["owner"])
+    .index("by_avatarUrl", ["avatarUrl"]),
+
+  // ─── Private Repo Aggregate Stats ─────────────────────────────
+  // These tables store ONLY aggregate numbers keyed by githubLogin.
+  // NO repo names, NO commit messages, NO SHAs, NO file paths.
+
+  userPrivateDailyStats: defineTable({
+    githubLogin: v.string(),
+    date: v.number(), // epoch ms, midnight UTC
+    human: v.number(),
+    ai: v.number(),
+    automation: v.number(),
+    humanAdditions: v.number(),
+    aiAdditions: v.number(),
+    automationAdditions: v.number(),
+  })
+    .index("by_login", ["githubLogin"])
+    .index("by_login_and_date", ["githubLogin", "date"]),
+
+  userPrivateWeeklyStats: defineTable({
+    githubLogin: v.string(),
+    weekStart: v.number(),
+    weekLabel: v.string(),
+    human: v.number(),
+    copilot: v.number(),
+    claude: v.number(),
+    cursor: v.optional(v.number()),
+    aider: v.optional(v.number()),
+    devin: v.optional(v.number()),
+    openaiCodex: v.optional(v.number()),
+    gemini: v.optional(v.number()),
+    aiAssisted: v.number(),
+    dependabot: v.number(),
+    renovate: v.number(),
+    githubActions: v.number(),
+    otherBot: v.number(),
+    total: v.number(),
+    humanAdditions: v.optional(v.number()),
+    copilotAdditions: v.optional(v.number()),
+    claudeAdditions: v.optional(v.number()),
+    cursorAdditions: v.optional(v.number()),
+    aiderAdditions: v.optional(v.number()),
+    devinAdditions: v.optional(v.number()),
+    openaiCodexAdditions: v.optional(v.number()),
+    geminiAdditions: v.optional(v.number()),
+    aiAssistedAdditions: v.optional(v.number()),
+    totalAdditions: v.optional(v.number()),
+    totalDeletions: v.optional(v.number()),
+  })
+    .index("by_login", ["githubLogin"])
+    .index("by_login_and_week", ["githubLogin", "weekStart"]),
+
+  userPrivateSyncStatus: defineTable({
+    githubLogin: v.string(),
+    syncStatus: v.union(
+      v.literal("idle"),
+      v.literal("syncing"),
+      v.literal("synced"),
+      v.literal("error")
+    ),
+    syncError: v.optional(v.string()),
+    lastSyncedAt: v.optional(v.number()),
+    includesPrivateData: v.boolean(),
+    // Progress tracking — updated during sync so the UI can show live progress.
+    // All fields are optional for backward compatibility with existing rows.
+    totalRepos: v.optional(v.number()),
+    processedRepos: v.optional(v.number()),
+    totalCommitsFound: v.optional(v.number()),
+  }).index("by_login", ["githubLogin"]),
 });

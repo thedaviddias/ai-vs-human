@@ -1,7 +1,7 @@
 "use client";
 
-import { useQuery } from "convex/react";
-import { Bell, CheckCircle2, Clock, Loader2, RefreshCw, Star, XCircle } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { Bell, CheckCircle2, Clock, Eye, Loader2, RefreshCw, Star, XCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
@@ -17,11 +17,23 @@ import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { ShareButtons } from "@/components/sharing/ShareButtons";
 import { OwnerPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { NotificationModal } from "@/components/ui/NotificationModal";
+import { PrivateDataBadge } from "@/components/ui/PrivateDataBadge";
+import { PrivateRepoCard } from "@/components/ui/PrivateRepoCard";
 import { api } from "@/convex/_generated/api";
-import { aggregateMultiRepoStats, computeUserSummary } from "@/lib/aggregateUserStats";
+import {
+  aggregateMultiRepoStats,
+  buildBreakdownFromWeeklyStats,
+  computeUserSummary,
+  mergeDetailedBreakdowns,
+  mergePublicAndPrivateWeeklyStats,
+  sumPrivateDailyStats,
+} from "@/lib/aggregateUserStats";
+import { authClient } from "@/lib/auth-client";
 import { useSound } from "@/lib/hooks/useSound";
 import { logger } from "@/lib/logger";
 import { postJson } from "@/lib/postJson";
+import { shouldAutoTriggerPrivateSync } from "@/lib/privateSyncTrigger";
+import { shouldShowPrivateData } from "@/lib/privateVisibility";
 import { getSyncBadgeLabel, getSyncStageLabel } from "@/lib/syncProgress";
 import { trackEvent } from "@/lib/tracking";
 import { createUserAutoAnalyzePlan } from "@/lib/userAutoAnalyzePlan";
@@ -78,11 +90,100 @@ interface GitHubRepo {
 
 const chartModes = ["commits", "loc"] as const;
 const repoSortModes = ["latest", "stars"] as const;
+const viewModes = ["owner", "public"] as const;
 
 export function UserDashboardContent({ owner }: { owner: string }) {
+  // Auth: detect if the viewer is looking at their own profile.
+  // We use `getMyGitHubLogin` (returns GitHub login from the `username` field)
+  // instead of `session.user.name` — which is the GitHub display name
+  // (e.g., "David Dias") and doesn't match the URL's `owner` param.
+  const { data: session } = authClient.useSession();
+  const myGitHubLogin = useQuery(api.auth.getMyGitHubLogin, session?.user ? {} : "skip");
+
+  // Profile query — needed early for isOwnProfile fallback and privacy toggle
+  const cachedProfile = useQuery(api.queries.users.getProfile, { owner });
+
+  // "View as visitor" mode: ?view=public overrides isOwnProfile to false,
+  // letting the owner see exactly what visitors see on their profile.
+  const [viewMode, setViewMode] = useQueryState(
+    "view",
+    parseAsStringLiteral(viewModes).withDefault("owner").withOptions({ scroll: false })
+  );
+
+  const isActualOwner = useMemo(() => {
+    // Primary: compare resolved GitHub login with URL owner
+    if (myGitHubLogin) {
+      return myGitHubLogin.toLowerCase() === owner.toLowerCase();
+    }
+    // Fallback: compare avatar URLs — both come from the GitHub API and
+    // are unique per account (https://avatars.githubusercontent.com/u/{id}?v=4).
+    // This works even for legacy users where getMyGitHubLogin returns null.
+    if (session?.user?.image && cachedProfile?.avatarUrl) {
+      return session.user.image === cachedProfile.avatarUrl;
+    }
+    return false;
+  }, [myGitHubLogin, owner, session?.user?.image, cachedProfile?.avatarUrl]);
+
+  // When ?view=public, pretend we're not the owner so the page renders
+  // exactly as a visitor would see it (no PrivateRepoCard, no owner-only controls).
+  const isPublicPreview = isActualOwner && viewMode === "public";
+  const isOwnProfile = isActualOwner && !isPublicPreview;
+
+  // Private data queries (reactive — update as sync progresses)
+  const privateSyncStatus = useQuery(api.queries.privateStats.getUserPrivateSyncStatus, {
+    githubLogin: owner,
+  });
+
+  const hasPrivateData = privateSyncStatus?.includesPrivateData === true;
+
+  // Determine if private data should be visible to the current viewer
+  const showPrivateToViewer = useMemo(
+    () =>
+      shouldShowPrivateData({
+        isOwnProfile,
+        hasPrivateData,
+        showPrivateDataPublicly: cachedProfile?.showPrivateDataPublicly,
+      }),
+    [isOwnProfile, hasPrivateData, cachedProfile?.showPrivateDataPublicly]
+  );
+
+  const privateDailyStats = useQuery(
+    api.queries.privateStats.getUserPrivateDailyStats,
+    showPrivateToViewer && privateSyncStatus?.includesPrivateData ? { githubLogin: owner } : "skip"
+  );
+
+  // Private weekly stats — needed to merge into the stat card percentages.
+  // Without this, the Human/AI/Bot percentages only reflect public repos.
+  const privateWeeklyStats = useQuery(
+    api.queries.privateStats.getUserPrivateWeeklyStats,
+    showPrivateToViewer && privateSyncStatus?.includesPrivateData ? { githubLogin: owner } : "skip"
+  );
+
+  // Auto-trigger private sync on first visit after sign-in
+  const requestPrivateSync = useMutation(api.mutations.requestPrivateSync.requestPrivateSync);
+  const updatePrivateVisibility = useMutation(
+    api.mutations.updatePrivateVisibility.updatePrivateVisibility
+  );
+  const hasAutoTriggeredPrivateSync = useRef(false);
+
+  useEffect(() => {
+    if (hasAutoTriggeredPrivateSync.current) return;
+
+    const shouldTrigger = shouldAutoTriggerPrivateSync({
+      isOwnProfile,
+      isAuthenticated: !!session?.user,
+      privateSyncStatus: privateSyncStatus === undefined ? undefined : privateSyncStatus,
+    });
+
+    if (shouldTrigger) {
+      hasAutoTriggeredPrivateSync.current = true;
+      void requestPrivateSync();
+    }
+  }, [isOwnProfile, session, privateSyncStatus, requestPrivateSync]);
+
   const [sortMode, setSortMode] = useQueryState(
     "sort",
-    parseAsStringLiteral(repoSortModes).withDefault("latest")
+    parseAsStringLiteral(repoSortModes).withDefault("latest").withOptions({ scroll: false })
   );
   const ownerHref = `/${encodeURIComponent(owner)}`;
   const ownerBreadcrumbs = [
@@ -96,8 +197,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   const [githubError, setGithubError] = useState<string | null>(null);
   const [hasTriggered, setHasTriggered] = useState(false);
 
-  // Phase 2: Fetch cached profile from Convex + Local fallback
-  const cachedProfile = useQuery(api.queries.users.getProfile, { owner: owner });
+  // Phase 2: Local fallback for profile (cachedProfile fetched above for privacy check)
   const [localProfile, setLocalProfile] = useState<{
     name: string | null;
     avatar_url: string;
@@ -164,7 +264,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   const [chartMode, setChartMode] = useQueryState(
     "view",
-    parseAsStringLiteral(chartModes).withDefault("commits")
+    parseAsStringLiteral(chartModes).withDefault("commits").withOptions({ scroll: false })
   );
 
   // Resync: allows user to re-trigger analysis with latest classification
@@ -280,17 +380,82 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     repoFullNames.length > 0 ? { repoFullNames } : "skip"
   );
 
-  const dailyData = multiDailyStats ?? [];
+  // Merge public + private daily stats for the heatmap.
+  // Private stats are keyed by date (epoch ms) — we add counts to matching days
+  // or create new entries for days that only have private activity.
+  const dailyData = useMemo(() => {
+    const publicData = multiDailyStats ?? [];
+    if (!privateDailyStats || privateDailyStats.length === 0) return publicData;
 
-  const aggregated = useMemo(
-    () => (multiStats ? aggregateMultiRepoStats(multiStats) : []),
-    [multiStats]
-  );
+    // Build a map from the public data
+    const dayMap = new Map<number, (typeof publicData)[0]>();
+    for (const day of publicData) {
+      dayMap.set(day.date, { ...day });
+    }
+
+    // Merge private stats into the map
+    for (const priv of privateDailyStats) {
+      const existing = dayMap.get(priv.date);
+      if (existing) {
+        dayMap.set(priv.date, {
+          ...existing,
+          human: existing.human + priv.human,
+          ai: existing.ai + priv.ai,
+          automation: (existing.automation ?? 0) + priv.automation,
+          humanAdditions: existing.humanAdditions + priv.humanAdditions,
+          aiAdditions: existing.aiAdditions + priv.aiAdditions,
+          automationAdditions: (existing.automationAdditions ?? 0) + priv.automationAdditions,
+        });
+      } else {
+        // Day exists only in private data
+        dayMap.set(priv.date, {
+          date: priv.date,
+          human: priv.human,
+          ai: priv.ai,
+          automation: priv.automation,
+          humanAdditions: priv.humanAdditions,
+          aiAdditions: priv.aiAdditions,
+          automationAdditions: priv.automationAdditions,
+        });
+      }
+    }
+
+    return Array.from(dayMap.values()).sort((a, b) => a.date - b.date);
+  }, [multiDailyStats, privateDailyStats]);
+
+  // Total private commits for the stats card breakdown ("public + private")
+  const privateCommitCount = useMemo(() => {
+    if (!privateDailyStats || privateDailyStats.length === 0) return undefined;
+    return sumPrivateDailyStats(privateDailyStats);
+  }, [privateDailyStats]);
+
+  // Merge public + private weekly stats, then aggregate by week.
+  // This ensures stat cards (Human %, AI %, Bot %) reflect BOTH public and private data
+  // when the user has linked private repos and visibility allows it.
+  // When private data is unlinked, privateWeeklyStats becomes empty → reverts to public only.
+  const aggregated = useMemo(() => {
+    if (!multiStats) return [];
+    const merged = mergePublicAndPrivateWeeklyStats(multiStats, privateWeeklyStats ?? []);
+    return aggregateMultiRepoStats(merged);
+  }, [multiStats, privateWeeklyStats]);
 
   const userSummary = useMemo(
     () => (aggregated.length > 0 ? computeUserSummary(aggregated) : null),
     [aggregated]
   );
+
+  // Merge private tool/bot breakdowns into the public detailed breakdown.
+  // `multiRepoDetailedBreakdown` reads from the repos table (public only, but with
+  // granular keys like "coderabbit"). Private weekly stats add the standard 7 tools.
+  const mergedBreakdown = useMemo(() => {
+    if (!multiRepoDetailedBreakdown) return null;
+    if (!privateWeeklyStats || privateWeeklyStats.length === 0) return multiRepoDetailedBreakdown;
+
+    const privateBreakdown = buildBreakdownFromWeeklyStats(
+      privateWeeklyStats as Array<Record<string, number | string | undefined>>
+    );
+    return mergeDetailedBreakdowns(multiRepoDetailedBreakdown, privateBreakdown);
+  }, [multiRepoDetailedBreakdown, privateWeeklyStats]);
 
   const repoPercentagesById = useMemo(() => {
     if (!multiStats)
@@ -630,6 +795,9 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               label={owner}
               type="user"
               botPercentage={userSummary?.aiPercentage ?? "0"}
+              includesPrivateData={hasPrivateData}
+              isOwnProfile={isOwnProfile}
+              isSyncing={isSyncInProgress}
             />
           </ErrorBoundary>
           <button
@@ -646,8 +814,60 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             <RefreshCw className={`h-3.5 w-3.5 ${isSyncInProgress ? "animate-spin" : ""}`} />
             Re-sync
           </button>
+          {isActualOwner && !isPublicPreview && (
+            <button
+              type="button"
+              onClick={() => setViewMode("public")}
+              className="flex items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs font-semibold transition-all hover:bg-neutral-800 active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              View as visitor
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Public Preview Banner — shown when ?view=public is active */}
+      {isPublicPreview && (
+        <div className="mx-auto mt-6 max-w-xl animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-800/50 bg-blue-950/30 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <Eye className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-medium text-blue-200">Viewing as a visitor</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewMode("owner")}
+              className="rounded-lg border border-blue-700/50 px-3 py-1 text-xs font-semibold text-blue-300 transition-colors hover:bg-blue-900/40 hover:text-white"
+            >
+              Back to my view
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Private Repo Card — shown to authenticated users viewing their own profile */}
+      {isOwnProfile && (
+        <div className="mx-auto mt-8 max-w-xl">
+          <PrivateRepoCard
+            hasPrivateData={hasPrivateData}
+            syncStatus={privateSyncStatus?.syncStatus}
+            syncError={privateSyncStatus?.syncError}
+            lastSyncedAt={privateSyncStatus?.lastSyncedAt}
+            showPrivateDataPublicly={cachedProfile?.showPrivateDataPublicly}
+            onToggleVisibility={async (show) => {
+              await updatePrivateVisibility({ showPrivateDataPublicly: show });
+            }}
+            onResync={async () => {
+              await requestPrivateSync();
+            }}
+            totalRepos={privateSyncStatus?.totalRepos}
+            processedRepos={privateSyncStatus?.processedRepos}
+            totalCommitsFound={privateSyncStatus?.totalCommitsFound}
+            privateCommitCount={privateCommitCount}
+          />
+        </div>
+      )}
 
       {resyncError && (
         <div className="mx-auto mt-8 max-w-md rounded-lg border border-red-800 bg-red-900/20 px-4 py-3 text-sm text-red-300">
@@ -725,6 +945,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                 totalAdditions={userSummary.locTotals?.totalAdditions}
                 hasLocData={userSummary.hasLocData}
                 showZeroAiWhyCta={true}
+                privateCommitCount={privateCommitCount}
               />
             </ErrorBoundary>
 
@@ -732,9 +953,16 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             <div className="space-y-6">
               <div className="flex flex-col gap-3 border-b border-neutral-800 pb-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Public Activity Timeline</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-bold text-white">
+                      {showPrivateToViewer ? "Activity Timeline" : "Public Activity Timeline"}
+                    </h2>
+                    {showPrivateToViewer && <PrivateDataBadge />}
+                  </div>
                   <p className="mt-1 text-xs text-neutral-500">
-                    Top 20 public repos you own. Commits by default, UTC.
+                    {showPrivateToViewer
+                      ? "Public + private repos. Only aggregate stats stored."
+                      : "Top 20 public repos you own. Commits by default, UTC."}
                   </p>
                 </div>
                 {userSummary?.hasLocData && (
@@ -771,20 +999,20 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               </ErrorBoundary>
             </div>
 
-            {/* AI Tool Breakdown */}
-            {multiRepoDetailedBreakdown && multiRepoDetailedBreakdown.toolBreakdown.length > 0 && (
+            {/* AI Tool Breakdown — uses merged public + private data */}
+            {mergedBreakdown && mergedBreakdown.toolBreakdown.length > 0 && (
               <ErrorBoundary level="section">
                 <AIToolBreakdown
-                  toolBreakdown={multiRepoDetailedBreakdown.toolBreakdown}
+                  toolBreakdown={mergedBreakdown.toolBreakdown}
                   viewMode={userSummary.hasLocData ? chartMode : "commits"}
                 />
               </ErrorBoundary>
             )}
 
-            {/* Automation Bot Breakdown */}
-            {multiRepoDetailedBreakdown && multiRepoDetailedBreakdown.botBreakdown.length > 0 && (
+            {/* Automation Bot Breakdown — uses merged public + private data */}
+            {mergedBreakdown && mergedBreakdown.botBreakdown.length > 0 && (
               <ErrorBoundary level="section">
-                <BotToolBreakdown botBreakdown={multiRepoDetailedBreakdown.botBreakdown} />
+                <BotToolBreakdown botBreakdown={mergedBreakdown.botBreakdown} />
               </ErrorBoundary>
             )}
           </div>
@@ -951,6 +1179,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   repoCount={user.repoCount}
                   lastIndexedAt={user.lastIndexedAt}
                   isSyncing={user.isSyncing}
+                  hasPrivateData={user.hasPrivateData}
                 />
               ))}
             </div>

@@ -22,6 +22,8 @@ interface StatsSummaryProps {
   isGlobal?: boolean;
   showZeroAiWhyCta?: boolean;
   zeroAiWhyHref?: string;
+  /** When present and > 0, the "Total Activity" card shows public+private breakdown */
+  privateCommitCount?: number;
 }
 
 function formatNumber(n: number): string {
@@ -113,6 +115,7 @@ export function StatsSummary({
   isGlobal = false,
   showZeroAiWhyCta = false,
   zeroAiWhyHref = "/docs/attribution",
+  privateCommitCount,
 }: StatsSummaryProps) {
   const showZeroAiGuidance = shouldShowZeroAiGuidance({
     showZeroAiWhyCta,
@@ -154,9 +157,16 @@ export function StatsSummary({
     ? ` Based on ${formatNumber(totalAdditions ?? 0)} total added lines.`
     : "";
 
-  const totalCommitsTooltip = `Total analyzed activity across ${
-    repoCount ? `${repoCount} repositories` : "the selected repositories"
-  }. Includes human manual work, AI assistance, and maintenance bots.`;
+  const hasPrivateEnrichment = privateCommitCount != null && privateCommitCount > 0;
+  const displayedTotal = hasPrivateEnrichment ? totalCommits + privateCommitCount : totalCommits;
+
+  const totalCommitsTooltip = hasPrivateEnrichment
+    ? `${formatNumber(totalCommits)} public + ${formatNumber(privateCommitCount)} private commits across ${
+        repoCount ? `${repoCount} public repositories` : "the selected repositories"
+      } plus private repos. Only aggregate counts are stored for private repos.`
+    : `Total analyzed activity across ${
+        repoCount ? `${repoCount} repositories` : "the selected repositories"
+      }. Includes human manual work, AI assistance, and maintenance bots.`;
 
   const humanTooltip =
     hasLocData && locHumanPercentage
@@ -184,9 +194,15 @@ export function StatsSummary({
     <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
       <StatCard
         label="Total Activity"
-        value={formatNumber(totalCommits)}
+        value={formatNumber(displayedTotal)}
         icon={<Cpu className="h-5 w-5" />}
-        subtext={repoCount ? `${repoCount} repos` : undefined}
+        subtext={
+          hasPrivateEnrichment ? (
+            <span className="text-purple-400/80">+{formatNumber(privateCommitCount)} private</span>
+          ) : repoCount ? (
+            `${repoCount} repos`
+          ) : undefined
+        }
         tooltip={totalCommitsTooltip}
       />
       <StatCard

@@ -39,34 +39,66 @@ export function OwnerPageSkeleton() {
         <Skeleton className="mt-6 h-10 w-48 max-w-full" />
         <Skeleton className="mt-2 h-4 w-32 max-w-full opacity-50" />
 
-        <div className="mt-8 flex gap-3">
-          <SurfaceSkeleton className="h-9 w-24 rounded-xl" />
-          <SurfaceSkeleton className="h-9 w-24 rounded-xl" />
+        <div className="mt-8 flex flex-wrap justify-center gap-2 sm:gap-3">
+          {/* Copy Card */}
+          <SurfaceSkeleton className="h-9 w-[100px] rounded-xl bg-white/20 sm:h-10 sm:w-[120px]" />
+          {/* Post on X */}
+          <SurfaceSkeleton className="h-9 w-[95px] rounded-xl bg-black sm:h-10 sm:w-[110px]" />
+          {/* Copy Link */}
+          <SurfaceSkeleton className="h-9 w-[95px] rounded-xl sm:h-10 sm:w-[110px]" />
+          {/* More (...) */}
+          <SurfaceSkeleton className="h-9 w-9 rounded-xl sm:h-10 sm:w-10" />
+          {/* Re-sync */}
+          <SurfaceSkeleton className="h-9 w-[85px] rounded-xl sm:h-10 sm:w-[95px]" />
         </div>
       </div>
 
       {/* Main Insights Card Skeleton */}
-      <div className="mt-12 overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-900/20 p-6 sm:p-10">
-        <StatsSummarySkeleton />
+      <div className="mt-12 relative overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-900/20 p-6 sm:p-10">
+        <div className="space-y-12">
+          <StatsSummarySkeleton />
 
-        <div className="mt-12 space-y-6">
-          <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
-            <Skeleton className="h-6 w-40" />
-            <SurfaceSkeleton className="h-8 w-32 rounded-lg" />
+          <div className="space-y-6">
+            <div className="flex flex-col gap-3 border-b border-neutral-800 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-6 w-40" />
+                </div>
+                <Skeleton className="mt-2 h-3 w-64 opacity-50" />
+              </div>
+              <SurfaceSkeleton className="h-8 w-40 rounded-lg sm:self-start" />
+            </div>
+            <SurfaceSkeleton className="h-[400px] w-full rounded-xl border-neutral-800/50 bg-black/20" />
           </div>
-          <SurfaceSkeleton className="h-[400px] w-full" />
         </div>
       </div>
 
       <div className="mt-20">
-        <div className="flex items-center gap-4 mb-8">
-          <Skeleton className="h-6 w-48" />
-          <div className="h-px flex-1 bg-neutral-800" />
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4 flex-1">
+            <Skeleton className="h-7 w-48" />
+            <div className="h-px w-full bg-neutral-800 hidden sm:block" />
+          </div>
+
+          <div className="inline-flex rounded-lg border border-neutral-800 bg-black p-1 gap-1">
+            <SurfaceSkeleton className="h-7 w-16 rounded-md" />
+            <SurfaceSkeleton className="h-7 w-16 rounded-md" />
+          </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {OWNER_REPO_CARD_KEYS.map((key) => (
-            <SurfaceSkeleton key={key} className="h-36" />
-          ))}
+
+        <div className="space-y-10">
+          <div>
+            <div className="mb-4 flex items-center gap-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-6 rounded-full" />
+              <div className="h-px flex-1 bg-neutral-800/50" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {OWNER_REPO_CARD_KEYS.map((key) => (
+                <SurfaceSkeleton key={key} className="h-36" />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
 "use client";
 
-import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { ConvexReactClient } from "convex/react";
 import type { ReactNode } from "react";
+import { authClient } from "@/lib/auth-client";
 
 /**
  * Lazily initialize the Convex client.
@@ -23,8 +25,20 @@ function getConvexClient(): ConvexReactClient {
   return convex;
 }
 
+/**
+ * Provides the Convex client with better-auth session forwarding.
+ *
+ * Uses `ConvexBetterAuthProvider` (instead of plain `ConvexProvider`)
+ * so that the session token is automatically sent with every query
+ * and mutation. Without this, `authComponent.getAuthUser(ctx)` throws
+ * `ConvexError("Unauthenticated")` because Convex never receives the token.
+ */
 export function ConvexClientProvider({ children }: { children: ReactNode }) {
   const client = getConvexClient();
 
-  return <ConvexProvider client={client}>{children}</ConvexProvider>;
+  return (
+    <ConvexBetterAuthProvider client={client} authClient={authClient}>
+      {children}
+    </ConvexBetterAuthProvider>
+  );
 }

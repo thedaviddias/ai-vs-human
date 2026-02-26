@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cn, formatWeekLabel, getBaseUrl, getWeekStart } from "../utils";
+import { cn, formatPercentage, formatWeekLabel, getBaseUrl, getWeekStart } from "../utils";
 
 describe("cn", () => {
   it("merges class names", () => {
@@ -98,6 +98,37 @@ describe("getWeekStart", () => {
     expect(result.getUTCMinutes()).toBe(0);
     expect(result.getUTCSeconds()).toBe(0);
     expect(result.getUTCMilliseconds()).toBe(0);
+  });
+});
+
+describe("formatPercentage", () => {
+  it('returns "0" for zero', () => {
+    expect(formatPercentage(0)).toBe("0");
+  });
+
+  it("returns 1 decimal place for normal values", () => {
+    expect(formatPercentage(85.567)).toBe("85.6");
+    expect(formatPercentage(50)).toBe("50.0");
+  });
+
+  it("returns up to 2 decimals for very small values (<0.1)", () => {
+    expect(formatPercentage(0.04)).toBe("0.04");
+    expect(formatPercentage(0.09)).toBe("0.09");
+  });
+
+  it("strips trailing zero for small values that round to 1 decimal", () => {
+    // 0.05 → toFixed(2) = "0.05" → doesn't end with "0" → "0.05"
+    expect(formatPercentage(0.05)).toBe("0.05");
+    // 0.0999... → toFixed(2) = "0.10" → ends with "0" → toFixed(1) = "0.1"
+    expect(formatPercentage(0.0999)).toBe("0.1");
+  });
+
+  it("handles boundary at exactly 0.1 (uses 1 decimal)", () => {
+    expect(formatPercentage(0.1)).toBe("0.1");
+  });
+
+  it("handles 100%", () => {
+    expect(formatPercentage(100)).toBe("100.0");
   });
 });
 

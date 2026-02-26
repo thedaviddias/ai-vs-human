@@ -23,6 +23,13 @@ export default defineConfig({
         "convex/_generated/**",
         // Convex helpers require full Convex runtime (internalMutation/internalQuery)
         "convex/github/classifyPRsHelpers.ts",
+        // Browser-only: Web Audio API — requires AudioContext, not available in Node
+        "lib/sounds.ts",
+        // React hooks: require React testing environment (jsdom / @testing-library)
+        "lib/hooks/**",
+        // Thin config wrappers: call third-party constructors with no testable logic
+        "lib/auth-client.ts",
+        "lib/auth-server.ts",
       ],
       thresholds: {
         statements: 80,

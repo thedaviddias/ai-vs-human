@@ -1,6 +1,14 @@
 "use client";
 
-import { Check, Copy, Download, Image as ImageIcon, MoreHorizontal, Share } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Download,
+  EyeOff,
+  Image as ImageIcon,
+  MoreHorizontal,
+  Share,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useSound } from "@/lib/hooks/useSound";
 import { logger } from "@/lib/logger";
@@ -11,6 +19,12 @@ interface ShareButtonsProps {
   type: "user" | "repo";
   botPercentage: string;
   targetId?: string;
+  /** Whether the user has private data linked */
+  includesPrivateData?: boolean;
+  /** Whether the viewer is the profile owner */
+  isOwnProfile?: boolean;
+  /** Whether data is currently syncing */
+  isSyncing?: boolean;
 }
 
 const XLogo = () => (
@@ -20,7 +34,14 @@ const XLogo = () => (
   </svg>
 );
 
-export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) {
+export function ShareButtons({
+  label,
+  type,
+  botPercentage,
+  includesPrivateData,
+  isOwnProfile,
+  isSyncing,
+}: ShareButtonsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyImageLoading, setCopyImageLoading] = useState(false);
@@ -30,6 +51,21 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
 
   const [url, setUrl] = useState("");
   const [hasNativeShare, setHasNativeShare] = useState(false);
+
+  // Track sync transitions to trigger a pulse effect for the owner
+  const [isPulsing, setIsPulsing] = useState(false);
+  const prevIsSyncing = useRef(isSyncing);
+
+  useEffect(() => {
+    // If sync just finished and this is the owner's profile
+    if (prevIsSyncing.current === true && isSyncing === false && isOwnProfile) {
+      setIsPulsing(true);
+      // Let it pulse for 5 seconds to grab attention
+      const timeout = setTimeout(() => setIsPulsing(false), 5000);
+      return () => clearTimeout(timeout);
+    }
+    prevIsSyncing.current = isSyncing;
+  }, [isSyncing, isOwnProfile]);
 
   useEffect(() => {
     setUrl(window.location.href);
@@ -46,8 +82,9 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const getOgImageUrl = () => {
-    const baseUrl = `/api/og/${type}`;
+  const getOgImageUrl = (usePrivate = false) => {
+    const usePrivateRoute = usePrivate && type === "user";
+    const baseUrl = usePrivateRoute ? `/api/og/${type}/private` : `/api/og/${type}`;
     const params = new URLSearchParams();
     if (type === "user") {
       params.append("owner", label);
@@ -59,6 +96,8 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
     params.append("t", Date.now().toString());
     return `${baseUrl}?${params.toString()}`;
   };
+
+  const canDownloadPrivate = isOwnProfile && includesPrivateData && type === "user";
 
   const getShareText = () => {
     const aiVal = Number.parseFloat(botPercentage);
@@ -108,7 +147,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
   };
 
   const handleCopyImage = async () => {
-    const ogImageUrl = getOgImageUrl();
+    const ogImageUrl = getOgImageUrl(false);
     setCopyImageLoading(true);
     playClick();
     try {
@@ -129,8 +168,8 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
     }
   };
 
-  const handleDownloadImage = async () => {
-    const ogImageUrl = getOgImageUrl();
+  const handleDownloadImage = async (usePrivate = false) => {
+    const ogImageUrl = getOgImageUrl(usePrivate);
     setDownloadLoading(true);
     playClick();
     try {
@@ -140,9 +179,9 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
       const blobUrl = URL.createObjectURL(blob);
       const link = document.body.appendChild(document.createElement("a"));
       link.href = blobUrl;
-      link.download = `${label.replace("/", "-")}-aivshuman.png`;
+      link.download = `${label.replace("/", "-")}${usePrivate ? "-private" : ""}-aivshuman.png`;
       link.click();
-      trackEvent("download_png", { label, type });
+      trackEvent(usePrivate ? "download_private_png" : "download_png", { label, type });
       playSuccess();
       setTimeout(() => {
         link.remove();
@@ -187,8 +226,13 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
         onClick={() => {
           trackEvent("post_to_x", { label, type });
           playClick();
+          setIsPulsing(false); // Stop pulsing on click
         }}
-        className="flex items-center justify-center gap-1.5 rounded-xl border border-neutral-800 bg-black px-3 py-2 text-xs font-semibold text-neutral-400 transition-all hover:bg-neutral-900 hover:text-white hover:border-neutral-700 active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
+        className={`flex items-center justify-center gap-1.5 rounded-xl border border-neutral-800 bg-black px-3 py-2 text-xs font-semibold text-neutral-400 transition-all hover:bg-neutral-900 hover:text-white hover:border-neutral-700 active:scale-95 sm:gap-2 sm:px-4 sm:text-sm ${
+          isPulsing
+            ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-black animate-[pulse_1.5s_cubic-bezier(0.4,0,0.6,1)_infinite] text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]"
+            : ""
+        }`}
       >
         <XLogo />
         Post on X
@@ -234,7 +278,7 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
           <div className="absolute right-0 mt-2 w-48 origin-top-right overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-1.5 shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-100">
             <button
               type="button"
-              onClick={handleDownloadImage}
+              onClick={() => handleDownloadImage(false)}
               disabled={downloadLoading}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50"
             >
@@ -245,6 +289,18 @@ export function ShareButtons({ label, type, botPercentage }: ShareButtonsProps) 
               )}
               Download PNG
             </button>
+
+            {canDownloadPrivate && (
+              <button
+                type="button"
+                onClick={() => handleDownloadImage(true)}
+                disabled={downloadLoading}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50"
+              >
+                <EyeOff className="h-4 w-4 text-purple-400" />
+                Download with Private
+              </button>
+            )}
 
             {hasNativeShare && (
               <button

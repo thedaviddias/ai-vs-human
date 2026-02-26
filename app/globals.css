@@ -17,6 +17,14 @@ body {
   color: var(--foreground);
 }
 
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 /* Bell ring animation — gentle swing every few seconds */
 @keyframes bell-ring {
   0%,

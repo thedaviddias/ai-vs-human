@@ -2,7 +2,13 @@ import { fetchQuery } from "convex/nextjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import robots from "../../app/robots";
 import sitemap from "../../app/sitemap";
-import { canonicalUrl, createMetadata, DEFAULT_KEYWORDS, formatTitle } from "../seo";
+import {
+  canonicalUrl,
+  createDynamicMetadata,
+  createMetadata,
+  DEFAULT_KEYWORDS,
+  formatTitle,
+} from "../seo";
 
 vi.mock("convex/nextjs", () => ({
   fetchQuery: vi.fn(),
@@ -86,6 +92,26 @@ describe("seo helpers", () => {
         follow: true,
       },
     });
+  });
+
+  it("passes absolute ogImage URLs through unchanged (toAbsoluteUrl)", () => {
+    const metadata = createMetadata({
+      title: "Test",
+      description: "Test",
+      ogImage: "https://cdn.example.com/image.png",
+    });
+
+    const ogImages = (metadata.openGraph as Record<string, unknown>)?.images as Array<{
+      url: string;
+    }>;
+    expect(ogImages?.[0]?.url).toBe("https://cdn.example.com/image.png");
+  });
+
+  it("createDynamicMetadata delegates to createMetadata", () => {
+    const config = { title: "Dynamic", description: "Dynamic page", path: "/dynamic" };
+    const a = createMetadata(config);
+    const b = createDynamicMetadata(config);
+    expect(a).toEqual(b);
   });
 
   it("keeps /api disallowed while allowing framework assets in robots", () => {

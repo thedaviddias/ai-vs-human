@@ -86,11 +86,11 @@ export function HomeContent({
 
   const [sortMode, setSortMode] = useQueryState(
     "sort",
-    parseAsStringLiteral(sortModes).withDefault("latest")
+    parseAsStringLiteral(sortModes).withDefault("latest").withOptions({ scroll: false })
   );
   const [chartMode, setChartMode] = useQueryState(
     "view",
-    parseAsStringLiteral(chartModes).withDefault("commits")
+    parseAsStringLiteral(chartModes).withDefault("commits").withOptions({ scroll: false })
   );
 
   const dailyData = globalDailyStats ?? [];

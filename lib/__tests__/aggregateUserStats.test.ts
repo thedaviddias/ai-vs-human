@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { aggregateMultiRepoStats, computeUserSummary } from "../aggregateUserStats";
+import {
+  aggregateMultiRepoStats,
+  buildBreakdownFromWeeklyStats,
+  computeUserSummary,
+  mergeDetailedBreakdowns,
+  mergePublicAndPrivateWeeklyStats,
+} from "../aggregateUserStats";
 
 // ─── Test helpers ──────────────────────────────────────────────────────
 
@@ -282,7 +288,7 @@ describe("computeUserSummary", () => {
     });
   });
 
-  // ─── KEY SCENARIO ────────────────────────────────────────────────────
+  // ─── KEY SCENARIO ─────────────────────────────────────────────────
   // This is the most important test: it proves the system correctly
   // distinguishes between commit-based and LOC-based metrics.
   describe("Chart accuracy: LOC vs commit count", () => {
@@ -314,5 +320,256 @@ describe("computeUserSummary", () => {
       // AI wrote 90% of the actual code, even though humans made 91% of commits
       expect(summary.hasLocData).toBe(true);
     });
+  });
+});
+
+// ─── mergePublicAndPrivateWeeklyStats ─────────────────────────────────
+
+describe("mergePublicAndPrivateWeeklyStats", () => {
+  it("returns public stats when private is empty", () => {
+    const pub = [makeWeek({ human: 10, total: 10 })];
+    expect(mergePublicAndPrivateWeeklyStats(pub, [])).toEqual(pub);
+  });
+
+  it("returns private stats when public is empty", () => {
+    const priv = [makeWeek({ human: 5, total: 5 })];
+    expect(mergePublicAndPrivateWeeklyStats([], priv)).toEqual(priv);
+  });
+
+  it("concatenates both arrays for aggregation to merge by weekStart", () => {
+    const pub = [makeWeek({ human: 10, copilot: 5, total: 15 })];
+    const priv = [makeWeek({ human: 20, claude: 3, total: 23 })];
+    const merged = mergePublicAndPrivateWeeklyStats(pub, priv);
+    expect(merged).toHaveLength(2);
+
+    // When passed through aggregateMultiRepoStats, same-week rows are summed
+    const aggregated = aggregateMultiRepoStats(merged);
+    expect(aggregated).toHaveLength(1);
+    expect(aggregated[0].human).toBe(30);
+    expect(aggregated[0].copilot).toBe(5);
+    expect(aggregated[0].claude).toBe(3);
+    expect(aggregated[0].total).toBe(38);
+  });
+
+  it("produces correct merged percentages through the full pipeline", () => {
+    // Public: 80 human, 20 AI → 80% human (public only)
+    const pub = [makeWeek({ human: 80, copilot: 20, total: 100 })];
+    // Private: 50 human, 50 AI → when merged: 130 human, 70 AI → 65% human
+    const priv = [makeWeek({ human: 50, copilot: 50, total: 100 })];
+
+    const merged = mergePublicAndPrivateWeeklyStats(pub, priv);
+    const aggregated = aggregateMultiRepoStats(merged);
+    const summary = computeUserSummary(aggregated);
+
+    // Total: 130 human + 70 AI = 200
+    expect(summary.totals.human).toBe(130);
+    expect(summary.totals.ai).toBe(70);
+    expect(summary.totals.total).toBe(200);
+    expect(summary.humanPercentage).toBe("65.0");
+    expect(summary.aiPercentage).toBe("35.0");
+  });
+
+  it("keeps different weeks separate in merged output", () => {
+    const pub = [makeWeek({ weekStart: 1704067200000, weekLabel: "2024-W01", human: 10 })];
+    const priv = [makeWeek({ weekStart: 1704672000000, weekLabel: "2024-W02", human: 20 })];
+
+    const merged = mergePublicAndPrivateWeeklyStats(pub, priv);
+    const aggregated = aggregateMultiRepoStats(merged);
+    expect(aggregated).toHaveLength(2);
+    expect(aggregated[0].human).toBe(10);
+    expect(aggregated[1].human).toBe(20);
+  });
+});
+
+// ─── buildBreakdownFromWeeklyStats ──────────────────────────────────────
+
+describe("buildBreakdownFromWeeklyStats", () => {
+  it("extracts AI tool breakdown from weekly stats", () => {
+    const stats = [
+      makeWeek({ copilot: 10, claude: 5, copilotAdditions: 500, claudeAdditions: 200 }),
+      makeWeek({ copilot: 20, claude: 15, copilotAdditions: 1000, claudeAdditions: 800 }),
+    ];
+    const { toolBreakdown } = buildBreakdownFromWeeklyStats(stats);
+
+    const copilot = toolBreakdown.find((t) => t.key === "github-copilot");
+    expect(copilot).toBeDefined();
+    expect(copilot!.commits).toBe(30);
+    expect(copilot!.additions).toBe(1500);
+    expect(copilot!.label).toBe("GitHub Copilot");
+
+    const claude = toolBreakdown.find((t) => t.key === "claude-code");
+    expect(claude).toBeDefined();
+    expect(claude!.commits).toBe(20);
+    expect(claude!.additions).toBe(1000);
+  });
+
+  it("extracts bot breakdown from weekly stats", () => {
+    const stats = [
+      makeWeek({ dependabot: 30, renovate: 10, githubActions: 5 }),
+      makeWeek({ dependabot: 20, renovate: 5, otherBot: 2 }),
+    ];
+    const { botBreakdown } = buildBreakdownFromWeeklyStats(stats);
+
+    const dependabot = botBreakdown.find((b) => b.key === "dependabot");
+    expect(dependabot).toBeDefined();
+    expect(dependabot!.commits).toBe(50);
+
+    const renovate = botBreakdown.find((b) => b.key === "renovate");
+    expect(renovate!.commits).toBe(15);
+
+    const actions = botBreakdown.find((b) => b.key === "github-actions");
+    expect(actions!.commits).toBe(5);
+
+    const other = botBreakdown.find((b) => b.key === "other-bot");
+    expect(other!.commits).toBe(2);
+  });
+
+  it("omits tools with zero commits and zero additions", () => {
+    const stats = [makeWeek({ copilot: 10, copilotAdditions: 100 })];
+    const { toolBreakdown, botBreakdown } = buildBreakdownFromWeeklyStats(stats);
+
+    // Only copilot should appear — all others are 0
+    expect(toolBreakdown).toHaveLength(1);
+    expect(toolBreakdown[0].key).toBe("github-copilot");
+
+    // No bots had commits
+    expect(botBreakdown).toHaveLength(0);
+  });
+
+  it("includes tool with additions but zero commits", () => {
+    // Edge case: a tool has LOC additions but no commit count (shouldn't happen,
+    // but the function should handle it gracefully)
+    const stats = [makeWeek({ cursorAdditions: 500 })];
+    const { toolBreakdown } = buildBreakdownFromWeeklyStats(stats);
+
+    const cursor = toolBreakdown.find((t) => t.key === "cursor");
+    expect(cursor).toBeDefined();
+    expect(cursor!.commits).toBe(0);
+    expect(cursor!.additions).toBe(500);
+  });
+
+  it("omits aiAssisted from tool breakdown (it's a catch-all)", () => {
+    const stats = [makeWeek({ aiAssisted: 50, aiAssistedAdditions: 1000 })];
+    const { toolBreakdown } = buildBreakdownFromWeeklyStats(stats);
+
+    // aiAssisted should NOT appear as a specific tool
+    const aiAssisted = toolBreakdown.find((t) => t.label.includes("aiAssisted"));
+    expect(aiAssisted).toBeUndefined();
+    expect(toolBreakdown).toHaveLength(0);
+  });
+
+  it("returns empty arrays for empty input", () => {
+    const { toolBreakdown, botBreakdown } = buildBreakdownFromWeeklyStats([]);
+    expect(toolBreakdown).toEqual([]);
+    expect(botBreakdown).toEqual([]);
+  });
+});
+
+// ─── mergeDetailedBreakdowns ────────────────────────────────────────────
+
+describe("mergeDetailedBreakdowns", () => {
+  it("sums matching tool keys from public and private", () => {
+    const publicBreakdown = {
+      toolBreakdown: [
+        { key: "github-copilot", label: "GitHub Copilot", commits: 100, additions: 5000 },
+        { key: "claude-code", label: "Claude Code", commits: 50, additions: 2000 },
+      ],
+      botBreakdown: [{ key: "dependabot", label: "Dependabot", commits: 30 }],
+    };
+    const privateBreakdown = {
+      toolBreakdown: [
+        { key: "github-copilot", label: "GitHub Copilot", commits: 80, additions: 3000 },
+        { key: "claude-code", label: "Claude Code", commits: 20, additions: 1000 },
+      ],
+      botBreakdown: [{ key: "dependabot", label: "Dependabot", commits: 10 }],
+    };
+
+    const merged = mergeDetailedBreakdowns(publicBreakdown, privateBreakdown);
+
+    const copilot = merged.toolBreakdown.find((t) => t.key === "github-copilot");
+    expect(copilot!.commits).toBe(180); // 100 + 80
+    expect(copilot!.additions).toBe(8000); // 5000 + 3000
+
+    const claude = merged.toolBreakdown.find((t) => t.key === "claude-code");
+    expect(claude!.commits).toBe(70); // 50 + 20
+    expect(claude!.additions).toBe(3000); // 2000 + 1000
+
+    const dependabot = merged.botBreakdown.find((b) => b.key === "dependabot");
+    expect(dependabot!.commits).toBe(40); // 30 + 10
+  });
+
+  it("preserves granular public keys not in private data", () => {
+    const publicBreakdown = {
+      toolBreakdown: [
+        { key: "github-copilot", label: "GitHub Copilot", commits: 100, additions: 5000 },
+        { key: "coderabbit", label: "CodeRabbit", commits: 15, additions: 200 },
+      ],
+      botBreakdown: [
+        { key: "dependabot", label: "Dependabot", commits: 30 },
+        { key: "semantic-release", label: "Semantic Release", commits: 10 },
+      ],
+    };
+    const privateBreakdown = {
+      toolBreakdown: [
+        { key: "github-copilot", label: "GitHub Copilot", commits: 50, additions: 2000 },
+      ],
+      botBreakdown: [{ key: "renovate", label: "Renovate", commits: 20 }],
+    };
+
+    const merged = mergeDetailedBreakdowns(publicBreakdown, privateBreakdown);
+
+    // Copilot is summed
+    expect(merged.toolBreakdown.find((t) => t.key === "github-copilot")!.commits).toBe(150);
+
+    // CodeRabbit only exists in public — preserved unchanged
+    expect(merged.toolBreakdown.find((t) => t.key === "coderabbit")!.commits).toBe(15);
+
+    // Semantic Release only in public — preserved
+    expect(merged.botBreakdown.find((b) => b.key === "semantic-release")!.commits).toBe(10);
+
+    // Renovate only in private — added
+    expect(merged.botBreakdown.find((b) => b.key === "renovate")!.commits).toBe(20);
+
+    // Total unique keys
+    expect(merged.toolBreakdown).toHaveLength(2);
+    expect(merged.botBreakdown).toHaveLength(3);
+  });
+
+  it("adds private-only tools to the merged result", () => {
+    const publicBreakdown = {
+      toolBreakdown: [
+        { key: "github-copilot", label: "GitHub Copilot", commits: 100, additions: 5000 },
+      ],
+      botBreakdown: [],
+    };
+    const privateBreakdown = {
+      toolBreakdown: [{ key: "cursor", label: "Cursor", commits: 30, additions: 1500 }],
+      botBreakdown: [{ key: "github-actions", label: "GitHub Actions", commits: 5 }],
+    };
+
+    const merged = mergeDetailedBreakdowns(publicBreakdown, privateBreakdown);
+
+    // Cursor only in private — added
+    const cursor = merged.toolBreakdown.find((t) => t.key === "cursor");
+    expect(cursor).toBeDefined();
+    expect(cursor!.commits).toBe(30);
+
+    // GitHub Actions only in private — added
+    expect(merged.botBreakdown).toHaveLength(1);
+    expect(merged.botBreakdown[0].key).toBe("github-actions");
+  });
+
+  it("handles empty private breakdown (returns public as-is)", () => {
+    const publicBreakdown = {
+      toolBreakdown: [
+        { key: "github-copilot", label: "GitHub Copilot", commits: 100, additions: 5000 },
+      ],
+      botBreakdown: [{ key: "dependabot", label: "Dependabot", commits: 30 }],
+    };
+    const privateBreakdown = { toolBreakdown: [], botBreakdown: [] };
+
+    const merged = mergeDetailedBreakdowns(publicBreakdown, privateBreakdown);
+    expect(merged.toolBreakdown).toEqual(publicBreakdown.toolBreakdown);
+    expect(merged.botBreakdown).toEqual(publicBreakdown.botBreakdown);
   });
 });

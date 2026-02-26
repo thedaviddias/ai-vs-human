@@ -405,33 +405,50 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
         </div>
       </div>
 
-      {/* Tooltip — compact GitHub-style */}
+      {/* Tooltip — Card UI */}
       {tooltip && (
         <div
-          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-xs leading-snug shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
-          style={{ left: tooltip.x, top: tooltip.y - 8 }}
+          className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full min-w-[220px] overflow-hidden rounded-xl border border-neutral-200/80 bg-white/95 shadow-2xl backdrop-blur-md dark:border-neutral-700/80 dark:bg-neutral-800/95"
+          style={{ left: tooltip.x, top: tooltip.y - 12 }}
         >
-          <div className="font-semibold text-neutral-900 dark:text-neutral-100">
-            {tooltip.total.toLocaleString()} {viewMode === "loc" ? "lines added" : "commits"} on{" "}
-            {tooltip.dateLabel}
+          <div className="border-b border-neutral-200/80 bg-neutral-50/50 px-4 py-3 dark:border-neutral-700/80 dark:bg-neutral-900/50">
+            <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              {tooltip.dateLabel}
+            </div>
+            <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+              {tooltip.total.toLocaleString()} {viewMode === "loc" ? "lines added" : "commits"}{" "}
+              total
+              {tooltip.total > 0 && ` (${tooltip.aiPercentage}% AI)`}
+            </div>
           </div>
-          <div className="mt-0.5 flex items-center gap-3 text-neutral-500">
-            <span>
-              <span className="text-green-600 dark:text-green-400">
+          <div className="flex flex-col gap-2.5 px-4 py-3.5 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2.5 text-neutral-600 dark:text-neutral-300">
+                <div className="h-2.5 w-2.5 rounded-sm bg-green-500" />
+                Human
+              </span>
+              <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                 {tooltip.human.toLocaleString()}
-              </span>{" "}
-              human
-            </span>
-            <span>
-              <span className="text-purple-500">{tooltip.ai.toLocaleString()}</span> AI
-            </span>
-            <span>
-              <span className="text-amber-500">{tooltip.automation.toLocaleString()}</span>{" "}
-              automation
-            </span>
-            {tooltip.total > 0 && (
-              <span className="text-neutral-400">({tooltip.aiPercentage}% AI)</span>
-            )}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2.5 text-neutral-600 dark:text-neutral-300">
+                <div className="h-2.5 w-2.5 rounded-sm bg-purple-500" />
+                AI
+              </span>
+              <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                {tooltip.ai.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2.5 text-neutral-600 dark:text-neutral-300">
+                <div className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
+                Automation
+              </span>
+              <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                {tooltip.automation.toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
       )}

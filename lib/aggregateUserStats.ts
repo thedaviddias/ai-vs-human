@@ -68,6 +68,173 @@ function formatPercentage(value: number): string {
   return value.toFixed(1);
 }
 
+// ─── Breakdown mapping ──────────────────────────────────────────────────
+// Mirrors `AI_TOOL_FIELDS` / `BOT_FIELDS` in `convex/queries/stats.ts`.
+// Used to build per-tool / per-bot breakdown arrays from weekly stat rows
+// so that private weekly data can be merged into the public detailed breakdown.
+
+const AI_TOOL_FIELDS = [
+  {
+    field: "copilot",
+    additionsField: "copilotAdditions",
+    key: "github-copilot",
+    label: "GitHub Copilot",
+  },
+  {
+    field: "claude",
+    additionsField: "claudeAdditions",
+    key: "claude-code",
+    label: "Claude Code",
+  },
+  { field: "cursor", additionsField: "cursorAdditions", key: "cursor", label: "Cursor" },
+  { field: "aider", additionsField: "aiderAdditions", key: "aider", label: "Aider" },
+  { field: "devin", additionsField: "devinAdditions", key: "devin", label: "Devin" },
+  {
+    field: "openaiCodex",
+    additionsField: "openaiCodexAdditions",
+    key: "openai-codex",
+    label: "OpenAI Codex",
+  },
+  { field: "gemini", additionsField: "geminiAdditions", key: "gemini", label: "Gemini" },
+  // NOTE: "aiAssisted" is intentionally omitted — it's a generic catch-all
+  // that can't be attributed to a specific tool. Those commits are still
+  // counted in overall AI percentages via computeUserSummary.
+] as const;
+
+const BOT_FIELDS = [
+  { field: "dependabot", key: "dependabot", label: "Dependabot" },
+  { field: "renovate", key: "renovate", label: "Renovate" },
+  { field: "githubActions", key: "github-actions", label: "GitHub Actions" },
+  { field: "otherBot", key: "other-bot", label: "Unknown Automation Bot" },
+] as const;
+
+/**
+ * Builds AI tool and automation bot breakdown arrays from weekly stat rows.
+ *
+ * Mirrors `buildBreakdownFromStats` in `convex/queries/stats.ts` but typed
+ * for the client-side `WeeklyStatRow` shape. Used to build breakdowns from
+ * private weekly stats so they can be merged with the server's public
+ * detailed breakdown (which includes granular keys like "coderabbit").
+ */
+export function buildBreakdownFromWeeklyStats(
+  stats: Array<Record<string, number | string | undefined>>
+): {
+  toolBreakdown: Array<{ key: string; label: string; commits: number; additions: number }>;
+  botBreakdown: Array<{ key: string; label: string; commits: number }>;
+} {
+  const toolBreakdown: Array<{ key: string; label: string; commits: number; additions: number }> =
+    [];
+  for (const { field, additionsField, key, label } of AI_TOOL_FIELDS) {
+    let commits = 0;
+    let additions = 0;
+    for (const week of stats) {
+      commits += (week[field] as number) ?? 0;
+      additions += (week[additionsField] as number) ?? 0;
+    }
+    if (commits > 0 || additions > 0) {
+      toolBreakdown.push({ key, label, commits, additions });
+    }
+  }
+
+  const botBreakdown: Array<{ key: string; label: string; commits: number }> = [];
+  for (const { field, key, label } of BOT_FIELDS) {
+    let commits = 0;
+    for (const week of stats) {
+      commits += (week[field] as number) ?? 0;
+    }
+    if (commits > 0) {
+      botBreakdown.push({ key, label, commits });
+    }
+  }
+
+  return { toolBreakdown, botBreakdown };
+}
+
+/**
+ * Merges a server-side detailed breakdown (public repos, granular keys)
+ * with a private breakdown (from weekly stats, standard 7 tools + 4 bots).
+ *
+ * For matching keys, commits/additions are summed.
+ * Non-overlapping keys from either source are preserved — this keeps
+ * granular public keys (e.g., "coderabbit") alongside private data.
+ */
+export function mergeDetailedBreakdowns(
+  publicBreakdown: {
+    toolBreakdown: Array<{ key: string; label: string; commits: number; additions: number }>;
+    botBreakdown: Array<{ key: string; label: string; commits: number }>;
+  },
+  privateBreakdown: {
+    toolBreakdown: Array<{ key: string; label: string; commits: number; additions: number }>;
+    botBreakdown: Array<{ key: string; label: string; commits: number }>;
+  }
+): {
+  toolBreakdown: Array<{ key: string; label: string; commits: number; additions: number }>;
+  botBreakdown: Array<{ key: string; label: string; commits: number }>;
+} {
+  // Merge tool breakdowns
+  const toolMap = new Map(publicBreakdown.toolBreakdown.map((t) => [t.key, { ...t }]));
+  for (const tool of privateBreakdown.toolBreakdown) {
+    const existing = toolMap.get(tool.key);
+    if (existing) {
+      existing.commits += tool.commits;
+      existing.additions += tool.additions;
+    } else {
+      toolMap.set(tool.key, { ...tool });
+    }
+  }
+
+  // Merge bot breakdowns
+  const botMap = new Map(publicBreakdown.botBreakdown.map((b) => [b.key, { ...b }]));
+  for (const bot of privateBreakdown.botBreakdown) {
+    const existing = botMap.get(bot.key);
+    if (existing) {
+      existing.commits += bot.commits;
+    } else {
+      botMap.set(bot.key, { ...bot });
+    }
+  }
+
+  return {
+    toolBreakdown: Array.from(toolMap.values()),
+    botBreakdown: Array.from(botMap.values()),
+  };
+}
+
+/**
+ * Sums all private daily stats into a single commit count.
+ *
+ * Used to display the "public + private" breakdown in the profile stats
+ * card. Each day contributes human + ai + automation commits.
+ */
+export function sumPrivateDailyStats(
+  stats: Array<{ human: number; ai: number; automation: number }>
+): number {
+  return stats.reduce((sum, day) => sum + day.human + day.ai + day.automation, 0);
+}
+
+/**
+ * Merges private weekly stats into public weekly stats.
+ *
+ * Both share the same `WeeklyStatRow` shape. When a week exists in both,
+ * the counts are summed. When a week exists only in private, it's added.
+ * Returns the merged array (not yet aggregated — pass through
+ * `aggregateMultiRepoStats` afterward for grouping).
+ *
+ * This is the key function that makes stat cards (Human %, AI %, Bot %)
+ * reflect both public AND private data when the user has linked private repos.
+ */
+export function mergePublicAndPrivateWeeklyStats(
+  publicStats: WeeklyStatRow[],
+  privateStats: WeeklyStatRow[]
+): WeeklyStatRow[] {
+  if (!privateStats || privateStats.length === 0) return publicStats;
+  if (!publicStats || publicStats.length === 0) return privateStats;
+
+  // Simply concatenate — aggregateMultiRepoStats already groups by weekStart
+  // and sums all fields. No need to merge here; let the existing grouping handle it.
+  return [...publicStats, ...privateStats];
+}
+
 /**
  * Groups weekly stat rows by weekStart and sums all classification fields.
  * Returns sorted by weekStart ascending — ready for chart rendering.

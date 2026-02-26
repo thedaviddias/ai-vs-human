@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
 import { withPlausibleProxy } from "next-plausible";
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["127.0.0.1", "localhost"],
+  allowedDevOrigins: ["localhost", "127.0.0.1"],
   pageExtensions: ["ts", "tsx", "md", "mdx"],
   experimental: {
     mdxRs: {
@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://plausible.io https://*.sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://github.com https://avatars.githubusercontent.com https://aivshuman.dev; font-src 'self'; connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud https://plausible.io https://api.github.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io ws://127.0.0.1:* http://127.0.0.1:*; frame-src 'self'; worker-src 'self' blob:;",
+              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://plausible.io https://*.sentry.io; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://github.com https://avatars.githubusercontent.com https://aivshuman.dev; font-src 'self'; connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud https://plausible.io https://api.github.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io ws://localhost:* http://localhost:* ws://127.0.0.1:* http://127.0.0.1:*; frame-src 'self'; worker-src 'self' blob:;",
           },
         ],
       },

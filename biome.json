@@ -54,7 +54,7 @@
   },
   "overrides": [
     {
-      "includes": ["app/api/og/**"],
+      "includes": ["app/api/og/**", "lib/og/**"],
       "linter": {
         "rules": {
           "suspicious": {

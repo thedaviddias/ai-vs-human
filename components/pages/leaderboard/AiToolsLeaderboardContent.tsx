@@ -77,7 +77,7 @@ export function AiToolsLeaderboardContent({ initialData }: { initialData: ToolLe
   const data = useQuery(api.queries.stats.getGlobalToolLeaderboards) ?? initialData;
   const [metric, setMetric] = useQueryState(
     "metric",
-    parseAsStringLiteral(metrics).withDefault("commits")
+    parseAsStringLiteral(metrics).withDefault("commits").withOptions({ scroll: false })
   );
   const hasTrackedInitialMetric = useRef(false);
   const [sorting, setSorting] = useState<SortingState>(() => metricToSorting(metric));

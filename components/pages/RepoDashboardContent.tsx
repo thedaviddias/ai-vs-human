@@ -42,11 +42,11 @@ export function RepoDashboardContent({
 }: RepoDashboardContentProps) {
   const [activeTab, setActiveTab] = useQueryState(
     "tab",
-    parseAsStringLiteral(tabs).withDefault("timeline")
+    parseAsStringLiteral(tabs).withDefault("timeline").withOptions({ scroll: false })
   );
   const [chartMode, setChartMode] = useQueryState(
     "view",
-    parseAsStringLiteral(chartModes).withDefault("commits")
+    parseAsStringLiteral(chartModes).withDefault("commits").withOptions({ scroll: false })
   );
   const [requesting, setRequesting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
@@ -284,6 +284,7 @@ export function RepoDashboardContent({
                 type="repo"
                 botPercentage={summary?.aiPercentage ?? "0"}
                 targetId="repo-insights"
+                isSyncing={isSyncInProgress}
               />
             </ErrorBoundary>
           </div>

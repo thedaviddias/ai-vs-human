@@ -3,12 +3,14 @@
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { getCoreRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
+import { Lock } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HumanAiBadges } from "@/components/badges/HumanAiBadges";
 import { api } from "@/convex/_generated/api";
+import { getPublicCommitCount, getPublicStarCount } from "@/lib/leaderboardSort";
 import { trackEvent } from "@/lib/tracking";
 import { formatCompactNumber, formatDateTime } from "./utils";
 
@@ -23,6 +25,9 @@ interface IndexedUserData {
   repoCount: number;
   lastIndexedAt: number;
   isSyncing: boolean;
+  hasPrivateData?: boolean;
+  publicTotalCommits?: number;
+  publicTotalStars?: number;
   profile?: {
     name?: string | null;
     followers?: number;
@@ -40,12 +45,12 @@ const columns: ColumnDef<IndexedUserData>[] = [
   },
   {
     id: "totalStars",
-    accessorFn: (row) => row.totalStars,
+    accessorFn: (row) => getPublicStarCount(row),
     sortDescFirst: true,
   },
   {
     id: "totalCommits",
-    accessorFn: (row) => row.totalCommits,
+    accessorFn: (row) => getPublicCommitCount(row),
     sortDescFirst: true,
   },
   {
@@ -105,7 +110,7 @@ export function DevelopersLeaderboardContent({
   const users = useQuery(api.queries.users.getIndexedUsersWithProfiles) ?? initialUsers;
   const [sortMode, setSortMode] = useQueryState(
     "sort",
-    parseAsStringLiteral(sortModes).withDefault("stars")
+    parseAsStringLiteral(sortModes).withDefault("stars").withOptions({ scroll: false })
   );
   const hasTrackedInitialSort = useRef(false);
   const [sorting, setSorting] = useState<SortingState>(() => modeToSorting(sortMode));
@@ -245,6 +250,12 @@ export function DevelopersLeaderboardContent({
                   </td>
                   <td className="px-4 py-3 font-semibold text-neutral-200">
                     {formatCompactNumber(user.totalCommits)}
+                    {user.hasPrivateData && (
+                      <Lock
+                        className="ml-1 inline h-3 w-3 text-purple-400/60"
+                        aria-label="Includes private repo data"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-neutral-300">
                     {formatCompactNumber(user.repoCount)}
@@ -303,6 +314,12 @@ export function DevelopersLeaderboardContent({
                 <div>
                   <span className="text-neutral-500">Commits</span>{" "}
                   {formatCompactNumber(user.totalCommits)}
+                  {user.hasPrivateData && (
+                    <Lock
+                      className="ml-1 inline h-3 w-3 text-purple-400/60"
+                      aria-label="Includes private repo data"
+                    />
+                  )}
                 </div>
                 <div>
                   <span className="text-neutral-500">Repos</span>{" "}

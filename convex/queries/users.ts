@@ -169,6 +169,48 @@ export const getIndexedUsers = query({
   },
 });
 
+/**
+ * Merges private aggregate stats into a user object returned by getIndexedUsersHelper.
+ * Only aggregate numbers are read — no repo names, SHAs, or messages.
+ */
+async function mergePrivateStatsIntoUser(
+  ctx: QueryCtx,
+  user: Awaited<ReturnType<typeof getIndexedUsersHelper>>[0]
+) {
+  const privateDailyStats = await ctx.db
+    .query("userPrivateDailyStats")
+    .withIndex("by_login", (q) => q.eq("githubLogin", user.owner))
+    .collect();
+
+  if (privateDailyStats.length === 0) return user;
+
+  let privateHuman = 0;
+  let privateAi = 0;
+  let privateAutomation = 0;
+  for (const day of privateDailyStats) {
+    privateHuman += day.human;
+    privateAi += day.ai;
+    privateAutomation += day.automation;
+  }
+
+  const mergedHuman = user.humanCommits + privateHuman;
+  const mergedBot = user.botCommits + privateAi;
+  const mergedAutomation = user.automationCommits + privateAutomation;
+  const mergedTotal = mergedHuman + mergedBot + mergedAutomation;
+
+  return {
+    ...user,
+    humanCommits: mergedHuman,
+    botCommits: mergedBot,
+    automationCommits: mergedAutomation,
+    totalCommits: mergedTotal,
+    humanPercentage: mergedTotal > 0 ? formatPercentage((mergedHuman / mergedTotal) * 100) : "0",
+    botPercentage: mergedTotal > 0 ? formatPercentage((mergedBot / mergedTotal) * 100) : "0",
+    automationPercentage:
+      mergedTotal > 0 ? formatPercentage((mergedAutomation / mergedTotal) * 100) : "0",
+  };
+}
+
 export const getIndexedUsersWithProfiles = query({
   args: {},
   handler: async (ctx) => {
@@ -180,9 +222,23 @@ export const getIndexedUsersWithProfiles = query({
         .query("profiles")
         .withIndex("by_owner", (q) => q.eq("owner", user.owner))
         .unique();
+
+      const hasPrivateData = profile?.hasPrivateData === true;
+      const showPublicly = profile?.showPrivateDataPublicly !== false; // undefined = true (default)
+
+      // Merge private stats for cards only when user opts to show publicly
+      let mergedUser = user;
+      if (hasPrivateData && showPublicly) {
+        mergedUser = await mergePrivateStatsIntoUser(ctx, user);
+      }
+
       result.push({
-        ...user,
+        ...mergedUser,
+        hasPrivateData,
         isProfileSynced: !!profile,
+        // Preserve original public-only values for fair leaderboard ranking
+        publicTotalCommits: user.totalCommits,
+        publicTotalStars: user.totalStars,
         profile: profile
           ? {
               name: profile.name,
@@ -206,131 +262,229 @@ export const getProfile = query({
   },
 });
 
+/**
+ * Returns the profile `owner` (GitHub login) matching the given avatar URL.
+ *
+ * Used as a client-side fallback when `getMyGitHubLogin` returns null
+ * (legacy users whose `username` field is unset). Both better-auth's
+ * `user.image` and `profiles.avatarUrl` store the same GitHub avatar
+ * URL (`https://avatars.githubusercontent.com/u/{id}?v=4`), which is
+ * unique per account and stable across name changes.
+ */
+export const getProfileOwnerByAvatarUrl = query({
+  args: { avatarUrl: v.string() },
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query("profiles")
+      .withIndex("by_avatarUrl", (q) => q.eq("avatarUrl", args.avatarUrl))
+      .first();
+    return profile?.owner ?? null;
+  },
+});
+
+/**
+ * Internal helper that fetches public repo data for a user.
+ * Extracted so it can be reused by both getUserByOwner and getUserByOwnerWithPrivateData.
+ */
+async function getUserByOwnerHelper(ctx: QueryCtx, owner: string) {
+  let repos = await ctx.db
+    .query("repos")
+    .withIndex("by_owner", (q) => q.eq("owner", owner))
+    .collect();
+
+  if (repos.length === 0) return null;
+
+  // Sort and limit to top 20 to match dashboard logic
+  repos = repos.sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0)).slice(0, 20);
+
+  let humanCommits = 0;
+  let aiCommits = 0;
+  let automationCommits = 0;
+  let humanAdditions = 0;
+  let aiAdditions = 0;
+  const syncedRepoIds = [];
+
+  for (const repo of repos) {
+    if (repo.syncStatus === "synced") {
+      syncedRepoIds.push(repo._id);
+    }
+
+    const weeklyStats = await ctx.db
+      .query("repoWeeklyStats")
+      .withIndex("by_repo", (q) => q.eq("repoId", repo._id))
+      .collect();
+
+    for (const week of weeklyStats) {
+      // Commits (AI tools only — automation bots counted separately)
+      humanCommits += week.human;
+      aiCommits +=
+        week.copilot +
+        week.claude +
+        (week.cursor ?? 0) +
+        week.aiAssisted +
+        (week.aider ?? 0) +
+        (week.devin ?? 0) +
+        (week.openaiCodex ?? 0) +
+        (week.gemini ?? 0);
+      automationCommits += week.dependabot + week.renovate + week.githubActions + week.otherBot;
+
+      // LOC
+      humanAdditions += week.humanAdditions ?? 0;
+      aiAdditions +=
+        (week.copilotAdditions ?? 0) +
+        (week.claudeAdditions ?? 0) +
+        (week.cursorAdditions ?? 0) +
+        (week.aiAssistedAdditions ?? 0) +
+        (week.aiderAdditions ?? 0) +
+        (week.devinAdditions ?? 0) +
+        (week.openaiCodexAdditions ?? 0) +
+        (week.geminiAdditions ?? 0);
+    }
+  }
+
+  const totalCommits = humanCommits + aiCommits + automationCommits;
+  const totalAdditions = humanAdditions + aiAdditions;
+
+  // Aggregate daily stats for heatmap
+  const dayBuckets = new Map<
+    number,
+    {
+      human: number;
+      ai: number;
+      automation: number;
+      humanAdditions: number;
+      aiAdditions: number;
+      automationAdditions: number;
+    }
+  >();
+
+  for (const repoId of syncedRepoIds) {
+    const dailyStats = await ctx.db
+      .query("repoDailyStats")
+      .withIndex("by_repo", (q) => q.eq("repoId", repoId))
+      .collect();
+
+    for (const stat of dailyStats) {
+      const existing = dayBuckets.get(stat.date);
+      if (existing) {
+        existing.human += stat.human;
+        existing.ai += stat.ai;
+        existing.automation += stat.automation ?? 0;
+        existing.humanAdditions += stat.humanAdditions;
+        existing.aiAdditions += stat.aiAdditions;
+        existing.automationAdditions += stat.automationAdditions ?? 0;
+      } else {
+        dayBuckets.set(stat.date, {
+          human: stat.human,
+          ai: stat.ai,
+          automation: stat.automation ?? 0,
+          humanAdditions: stat.humanAdditions,
+          aiAdditions: stat.aiAdditions,
+          automationAdditions: stat.automationAdditions ?? 0,
+        });
+      }
+    }
+  }
+
+  const dailyData = Array.from(dayBuckets.entries())
+    .map(([date, counts]) => ({ date, ...counts }))
+    .sort((a, b) => a.date - b.date);
+
+  return {
+    owner,
+    avatarUrl: `https://github.com/${owner}.png?size=160`,
+    humanCommits,
+    aiCommits,
+    automationCommits,
+    totalCommits,
+    totalAdditions,
+    repoCount: syncedRepoIds.length,
+    humanPercentage: totalCommits > 0 ? formatPercentage((humanCommits / totalCommits) * 100) : "0",
+    aiPercentage: totalCommits > 0 ? formatPercentage((aiCommits / totalCommits) * 100) : "0",
+    automationPercentage:
+      totalCommits > 0 ? formatPercentage((automationCommits / totalCommits) * 100) : "0",
+    locHumanPercentage:
+      totalAdditions > 0 ? formatPercentage((humanAdditions / totalAdditions) * 100) : null,
+    locAiPercentage:
+      totalAdditions > 0 ? formatPercentage((aiAdditions / totalAdditions) * 100) : null,
+    dailyData,
+  };
+}
+
 export const getUserByOwner = query({
   args: { owner: v.string() },
   handler: async (ctx, args) => {
-    let repos = await ctx.db
-      .query("repos")
-      .withIndex("by_owner", (q) => q.eq("owner", args.owner))
+    return getUserByOwnerHelper(ctx, args.owner);
+  },
+});
+
+/**
+ * Returns user data with private daily stats merged into dailyData.
+ * Used by the private OG image route to generate an image that includes
+ * the owner's private activity for personal sharing/download.
+ */
+export const getUserByOwnerWithPrivateData = query({
+  args: { owner: v.string() },
+  handler: async (ctx, args) => {
+    const baseUser = await getUserByOwnerHelper(ctx, args.owner);
+    if (!baseUser) return null;
+
+    const privateDailyStats = await ctx.db
+      .query("userPrivateDailyStats")
+      .withIndex("by_login", (q) => q.eq("githubLogin", args.owner))
       .collect();
 
-    if (repos.length === 0) return null;
+    if (privateDailyStats.length === 0) return baseUser;
 
-    // Sort and limit to top 20 to match dashboard logic
-    repos = repos.sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0)).slice(0, 20);
+    // Merge private daily stats into the public dailyData for heatmap
+    const dailyMap = new Map(baseUser.dailyData.map((d) => [d.date, { ...d }]));
 
-    let humanCommits = 0;
-    let aiCommits = 0;
-    let automationCommits = 0;
-    let humanAdditions = 0;
-    let aiAdditions = 0;
-    const syncedRepoIds = [];
+    let privateHuman = 0;
+    let privateAi = 0;
+    let privateAutomation = 0;
 
-    for (const repo of repos) {
-      if (repo.syncStatus === "synced") {
-        syncedRepoIds.push(repo._id);
-      }
+    for (const priv of privateDailyStats) {
+      privateHuman += priv.human;
+      privateAi += priv.ai;
+      privateAutomation += priv.automation;
 
-      const weeklyStats = await ctx.db
-        .query("repoWeeklyStats")
-        .withIndex("by_repo", (q) => q.eq("repoId", repo._id))
-        .collect();
-
-      for (const week of weeklyStats) {
-        // Commits (AI tools only — automation bots counted separately)
-        humanCommits += week.human;
-        aiCommits +=
-          week.copilot +
-          week.claude +
-          (week.cursor ?? 0) +
-          week.aiAssisted +
-          (week.aider ?? 0) +
-          (week.devin ?? 0) +
-          (week.openaiCodex ?? 0) +
-          (week.gemini ?? 0);
-        automationCommits += week.dependabot + week.renovate + week.githubActions + week.otherBot;
-
-        // LOC
-        humanAdditions += week.humanAdditions ?? 0;
-        aiAdditions +=
-          (week.copilotAdditions ?? 0) +
-          (week.claudeAdditions ?? 0) +
-          (week.cursorAdditions ?? 0) +
-          (week.aiAssistedAdditions ?? 0) +
-          (week.aiderAdditions ?? 0) +
-          (week.devinAdditions ?? 0) +
-          (week.openaiCodexAdditions ?? 0) +
-          (week.geminiAdditions ?? 0);
+      const existing = dailyMap.get(priv.date);
+      if (existing) {
+        existing.human += priv.human;
+        existing.ai += priv.ai;
+        existing.automation += priv.automation;
+      } else {
+        dailyMap.set(priv.date, {
+          date: priv.date,
+          human: priv.human,
+          ai: priv.ai,
+          automation: priv.automation,
+          humanAdditions: 0,
+          aiAdditions: 0,
+          automationAdditions: 0,
+        });
       }
     }
 
-    const totalCommits = humanCommits + aiCommits + automationCommits;
-    const totalAdditions = humanAdditions + aiAdditions;
+    // Recalculate merged totals and percentages
+    const mergedHuman = baseUser.humanCommits + privateHuman;
+    const mergedAi = baseUser.aiCommits + privateAi;
+    const mergedAutomation = baseUser.automationCommits + privateAutomation;
+    const mergedTotal = mergedHuman + mergedAi + mergedAutomation;
 
-    // Aggregate daily stats for heatmap
-    const dayBuckets = new Map<
-      number,
-      {
-        human: number;
-        ai: number;
-        automation: number;
-        humanAdditions: number;
-        aiAdditions: number;
-        automationAdditions: number;
-      }
-    >();
-
-    for (const repoId of syncedRepoIds) {
-      const dailyStats = await ctx.db
-        .query("repoDailyStats")
-        .withIndex("by_repo", (q) => q.eq("repoId", repoId))
-        .collect();
-
-      for (const stat of dailyStats) {
-        const existing = dayBuckets.get(stat.date);
-        if (existing) {
-          existing.human += stat.human;
-          existing.ai += stat.ai;
-          existing.automation += stat.automation ?? 0;
-          existing.humanAdditions += stat.humanAdditions;
-          existing.aiAdditions += stat.aiAdditions;
-          existing.automationAdditions += stat.automationAdditions ?? 0;
-        } else {
-          dayBuckets.set(stat.date, {
-            human: stat.human,
-            ai: stat.ai,
-            automation: stat.automation ?? 0,
-            humanAdditions: stat.humanAdditions,
-            aiAdditions: stat.aiAdditions,
-            automationAdditions: stat.automationAdditions ?? 0,
-          });
-        }
-      }
-    }
-
-    const dailyData = Array.from(dayBuckets.entries())
-      .map(([date, counts]) => ({ date, ...counts }))
-      .sort((a, b) => a.date - b.date);
+    const mergedDailyData = Array.from(dailyMap.values()).sort((a, b) => a.date - b.date);
 
     return {
-      owner: args.owner,
-      avatarUrl: `https://github.com/${args.owner}.png?size=160`,
-      humanCommits,
-      aiCommits,
-      automationCommits,
-      totalCommits,
-      totalAdditions,
-      repoCount: syncedRepoIds.length,
-      humanPercentage:
-        totalCommits > 0 ? formatPercentage((humanCommits / totalCommits) * 100) : "0",
-      aiPercentage: totalCommits > 0 ? formatPercentage((aiCommits / totalCommits) * 100) : "0",
+      ...baseUser,
+      humanCommits: mergedHuman,
+      aiCommits: mergedAi,
+      automationCommits: mergedAutomation,
+      totalCommits: mergedTotal,
+      humanPercentage: mergedTotal > 0 ? formatPercentage((mergedHuman / mergedTotal) * 100) : "0",
+      aiPercentage: mergedTotal > 0 ? formatPercentage((mergedAi / mergedTotal) * 100) : "0",
       automationPercentage:
-        totalCommits > 0 ? formatPercentage((automationCommits / totalCommits) * 100) : "0",
-      locHumanPercentage:
-        totalAdditions > 0 ? formatPercentage((humanAdditions / totalAdditions) * 100) : null,
-      locAiPercentage:
-        totalAdditions > 0 ? formatPercentage((aiAdditions / totalAdditions) * 100) : null,
-      dailyData,
+        mergedTotal > 0 ? formatPercentage((mergedAutomation / mergedTotal) * 100) : "0",
+      dailyData: mergedDailyData,
     };
   },
 });
@@ -362,15 +516,26 @@ export const getRelatedRecentUsers = query({
     // Filter out the current user and limit to the requested amount
     const filtered = selectedUsers.filter((u) => u.owner !== args.owner).slice(0, limit);
 
-    // Enrich with profiles
+    // Enrich with profiles and merge private stats
     const result = [];
     for (const user of filtered) {
       const profile = await ctx.db
         .query("profiles")
         .withIndex("by_owner", (q) => q.eq("owner", user.owner))
         .unique();
+
+      const hasPrivateData = profile?.hasPrivateData === true;
+      const showPublicly = profile?.showPrivateDataPublicly !== false; // undefined = true (default)
+
+      // Merge private stats for consistent card display only when user opts to show publicly
+      let mergedUser = user;
+      if (hasPrivateData && showPublicly) {
+        mergedUser = await mergePrivateStatsIntoUser(ctx, user);
+      }
+
       result.push({
-        ...user,
+        ...mergedUser,
+        hasPrivateData,
         profile: profile
           ? {
               name: profile.name,

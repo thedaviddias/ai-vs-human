@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -19,6 +19,7 @@ interface UserCardProps {
   repoCount: number;
   lastIndexedAt?: number;
   isSyncing?: boolean;
+  hasPrivateData?: boolean;
 }
 
 function formatCompactNumber(value: number): string {
@@ -57,6 +58,7 @@ export function UserCard({
   repoCount,
   lastIndexedAt,
   isSyncing = false,
+  hasPrivateData = false,
 }: UserCardProps) {
   const [showFallbackAvatar, setShowFallbackAvatar] = useState(false);
   const [localProfile, setLocalProfile] = useState<{
@@ -135,11 +137,19 @@ export function UserCard({
               )}
             </div>
           </div>
-          {lastIndexedAt && (
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-700">
-              {formatTimeAgo(lastIndexedAt)}
-            </div>
-          )}
+          <div className="flex flex-col items-end gap-1">
+            {hasPrivateData && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-400">
+                <Lock className="h-2.5 w-2.5" />
+                Private
+              </span>
+            )}
+            {lastIndexedAt && (
+              <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-700">
+                {formatTimeAgo(lastIndexedAt)}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-y-2 gap-x-6">

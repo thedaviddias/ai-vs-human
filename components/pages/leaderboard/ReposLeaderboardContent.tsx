@@ -71,7 +71,7 @@ export function ReposLeaderboardContent({ initialRepos }: { initialRepos: Indexe
   const repos = useQuery(api.queries.repos.getIndexedRepos) ?? initialRepos;
   const [sortMode, setSortMode] = useQueryState(
     "sort",
-    parseAsStringLiteral(sortModes).withDefault("stars")
+    parseAsStringLiteral(sortModes).withDefault("stars").withOptions({ scroll: false })
   );
   const hasTrackedInitialSort = useRef(false);
   const [sorting, setSorting] = useState<SortingState>(() => modeToSorting(sortMode));
