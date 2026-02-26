@@ -1,9 +1,11 @@
 "use client";
 
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { getCoreRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { trackEvent } from "@/lib/tracking";
 import { formatCompactNumber, formatDateTime } from "./utils";
@@ -19,6 +21,52 @@ interface IndexedRepoData {
 
 const sortModes = ["stars", "latest", "owner"] as const;
 
+const columns: ColumnDef<IndexedRepoData>[] = [
+  {
+    id: "fullName",
+    accessorFn: (row) => row.fullName,
+    enableSorting: false,
+  },
+  {
+    id: "stars",
+    accessorFn: (row) => row.stars ?? 0,
+    sortDescFirst: true,
+  },
+  {
+    id: "owner",
+    accessorFn: (row) => row.owner,
+  },
+  {
+    id: "lastSyncedAt",
+    accessorFn: (row) => row.lastSyncedAt ?? row.requestedAt,
+    sortDescFirst: true,
+  },
+];
+
+function modeToSorting(mode: (typeof sortModes)[number]): SortingState {
+  switch (mode) {
+    case "latest":
+      return [{ id: "lastSyncedAt", desc: true }];
+    case "owner":
+      return [{ id: "owner", desc: false }];
+    default:
+      return [{ id: "stars", desc: true }];
+  }
+}
+
+function sortingToMode(sorting: SortingState): (typeof sortModes)[number] {
+  const column = sorting[0]?.id;
+  if (column === "lastSyncedAt") return "latest";
+  if (column === "owner") return "owner";
+  return "stars";
+}
+
+function sortIndicator(sorting: false | "asc" | "desc") {
+  if (sorting === "asc") return "↑";
+  if (sorting === "desc") return "↓";
+  return "";
+}
+
 export function ReposLeaderboardContent({ initialRepos }: { initialRepos: IndexedRepoData[] }) {
   const repos = useQuery(api.queries.repos.getIndexedRepos) ?? initialRepos;
   const [sortMode, setSortMode] = useQueryState(
@@ -26,6 +74,7 @@ export function ReposLeaderboardContent({ initialRepos }: { initialRepos: Indexe
     parseAsStringLiteral(sortModes).withDefault("stars")
   );
   const hasTrackedInitialSort = useRef(false);
+  const [sorting, setSorting] = useState<SortingState>(() => modeToSorting(sortMode));
 
   useEffect(() => {
     if (!hasTrackedInitialSort.current) {
@@ -35,31 +84,37 @@ export function ReposLeaderboardContent({ initialRepos }: { initialRepos: Indexe
     trackEvent("leaderboard_sort_change", { section: "repos", sort: sortMode });
   }, [sortMode]);
 
-  const sortedRepos = useMemo(() => {
-    const base = [...repos];
-    return base.sort((a, b) => {
-      switch (sortMode) {
-        case "latest":
-          return (
-            (b.lastSyncedAt ?? b.requestedAt) - (a.lastSyncedAt ?? a.requestedAt) ||
-            (b.stars ?? 0) - (a.stars ?? 0) ||
-            a.fullName.localeCompare(b.fullName)
-          );
-        case "owner":
-          return (
-            a.owner.localeCompare(b.owner) ||
-            (b.stars ?? 0) - (a.stars ?? 0) ||
-            a.name.localeCompare(b.name)
-          );
-        default:
-          return (
-            (b.stars ?? 0) - (a.stars ?? 0) ||
-            (b.lastSyncedAt ?? b.requestedAt) - (a.lastSyncedAt ?? a.requestedAt) ||
-            a.fullName.localeCompare(b.fullName)
-          );
-      }
-    });
-  }, [repos, sortMode]);
+  useEffect(() => {
+    setSorting(modeToSorting(sortMode));
+  }, [sortMode]);
+
+  const table = useReactTable({
+    data: repos,
+    columns,
+    state: { sorting },
+    onSortingChange: (updater) => {
+      setSorting((old) => {
+        const next = typeof updater === "function" ? updater(old) : updater;
+        const nextMode = sortingToMode(next);
+        if (nextMode !== sortMode) {
+          void setSortMode(nextMode);
+        }
+        return next;
+      });
+    },
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const rows = table.getRowModel().rows;
+  const sortColumns = useMemo(
+    () => ({
+      stars: table.getColumn("stars"),
+      owner: table.getColumn("owner"),
+      latest: table.getColumn("lastSyncedAt"),
+    }),
+    [table]
+  );
 
   return (
     <div className="space-y-6 pb-8">
@@ -70,7 +125,10 @@ export function ReposLeaderboardContent({ initialRepos }: { initialRepos: Indexe
             <button
               key={mode}
               type="button"
-              onClick={() => setSortMode(mode)}
+              onClick={() => {
+                void setSortMode(mode);
+                setSorting(modeToSorting(mode));
+              }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
                 sortMode === mode ? "bg-white text-black" : "text-neutral-400 hover:text-white"
               }`}
@@ -87,35 +145,62 @@ export function ReposLeaderboardContent({ initialRepos }: { initialRepos: Indexe
             <tr>
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Repository</th>
-              <th className="px-4 py-3">Stars</th>
-              <th className="px-4 py-3">Owner</th>
-              <th className="px-4 py-3">Last Synced</th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.stars?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Stars {sortIndicator(sortColumns.stars?.getIsSorted() ?? false)}
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.owner?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Owner {sortIndicator(sortColumns.owner?.getIsSorted() ?? false)}
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.latest?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Last Synced {sortIndicator(sortColumns.latest?.getIsSorted() ?? false)}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {sortedRepos.map((repo, index) => (
-              <tr
-                key={repo.fullName}
-                className="border-t border-neutral-800/80 hover:bg-neutral-900/40"
-              >
-                <td className="px-4 py-3 font-semibold text-neutral-400">{index + 1}</td>
-                <td className="px-4 py-3">
-                  <Link
-                    href={`/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`}
-                    className="font-semibold text-white hover:text-neutral-200"
-                  >
-                    {repo.fullName}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 font-semibold text-amber-300">
-                  {formatCompactNumber(repo.stars ?? 0)}
-                </td>
-                <td className="px-4 py-3 text-neutral-300">@{repo.owner}</td>
-                <td className="px-4 py-3 text-neutral-400">
-                  {formatDateTime(repo.lastSyncedAt ?? repo.requestedAt)}
-                </td>
-              </tr>
-            ))}
+            {rows.map((row, index) => {
+              const repo = row.original;
+              return (
+                <tr
+                  key={repo.fullName}
+                  className="border-t border-neutral-800/80 hover:bg-neutral-900/40"
+                >
+                  <td className="px-4 py-3 font-semibold text-neutral-400">{index + 1}</td>
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`}
+                      className="font-semibold text-white hover:text-neutral-200"
+                    >
+                      {repo.fullName}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-amber-300">
+                    {formatCompactNumber(repo.stars ?? 0)}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-300">@{repo.owner}</td>
+                  <td className="px-4 py-3 text-neutral-400">
+                    {formatDateTime(repo.lastSyncedAt ?? repo.requestedAt)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

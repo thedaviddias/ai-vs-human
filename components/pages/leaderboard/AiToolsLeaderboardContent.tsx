@@ -1,8 +1,10 @@
 "use client";
 
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { getCoreRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
 import { useQuery } from "convex/react";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { trackEvent } from "@/lib/tracking";
 import { AiToolLogo } from "./toolVisuals";
@@ -30,6 +32,47 @@ interface ToolLeaderboardsData {
 
 const metrics = ["commits", "loc"] as const;
 
+const columns: ColumnDef<AiToolEntry>[] = [
+  {
+    id: "label",
+    accessorFn: (row) => row.label,
+    enableSorting: false,
+  },
+  {
+    id: "commits",
+    accessorFn: (row) => row.commits,
+    sortDescFirst: true,
+  },
+  {
+    id: "additions",
+    accessorFn: (row) => row.additions,
+    sortDescFirst: true,
+  },
+  {
+    id: "repoCount",
+    accessorFn: (row) => row.repoCount,
+    sortDescFirst: true,
+  },
+  {
+    id: "ownerCount",
+    accessorFn: (row) => row.ownerCount,
+    sortDescFirst: true,
+  },
+];
+
+function metricToSorting(metric: (typeof metrics)[number]): SortingState {
+  if (metric === "loc") {
+    return [{ id: "additions", desc: true }];
+  }
+  return [{ id: "commits", desc: true }];
+}
+
+function sortIndicator(sorting: false | "asc" | "desc") {
+  if (sorting === "asc") return "↑";
+  if (sorting === "desc") return "↓";
+  return "";
+}
+
 export function AiToolsLeaderboardContent({ initialData }: { initialData: ToolLeaderboardsData }) {
   const data = useQuery(api.queries.stats.getGlobalToolLeaderboards) ?? initialData;
   const [metric, setMetric] = useQueryState(
@@ -37,6 +80,7 @@ export function AiToolsLeaderboardContent({ initialData }: { initialData: ToolLe
     parseAsStringLiteral(metrics).withDefault("commits")
   );
   const hasTrackedInitialMetric = useRef(false);
+  const [sorting, setSorting] = useState<SortingState>(() => metricToSorting(metric));
 
   useEffect(() => {
     if (!hasTrackedInitialMetric.current) {
@@ -46,28 +90,29 @@ export function AiToolsLeaderboardContent({ initialData }: { initialData: ToolLe
     trackEvent("leaderboard_metric_toggle", { section: "ai-tools", metric });
   }, [metric]);
 
-  const rows = useMemo(() => {
-    const base = [...data.aiTools];
-    return base.sort((a, b) => {
-      if (metric === "loc") {
-        return (
-          b.additions - a.additions ||
-          b.commits - a.commits ||
-          b.repoCount - a.repoCount ||
-          b.ownerCount - a.ownerCount ||
-          a.label.localeCompare(b.label)
-        );
-      }
+  useEffect(() => {
+    setSorting(metricToSorting(metric));
+  }, [metric]);
 
-      return (
-        b.commits - a.commits ||
-        b.additions - a.additions ||
-        b.repoCount - a.repoCount ||
-        b.ownerCount - a.ownerCount ||
-        a.label.localeCompare(b.label)
-      );
-    });
-  }, [data.aiTools, metric]);
+  const table = useReactTable({
+    data: data.aiTools,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const rows = table.getRowModel().rows;
+  const sortColumns = useMemo(
+    () => ({
+      commits: table.getColumn("commits"),
+      additions: table.getColumn("additions"),
+      repos: table.getColumn("repoCount"),
+      owners: table.getColumn("ownerCount"),
+    }),
+    [table]
+  );
 
   return (
     <div className="space-y-6 pb-8">
@@ -78,7 +123,10 @@ export function AiToolsLeaderboardContent({ initialData }: { initialData: ToolLe
             <button
               key={value}
               type="button"
-              onClick={() => setMetric(value)}
+              onClick={() => {
+                void setMetric(value);
+                setSorting(metricToSorting(value));
+              }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
                 metric === value ? "bg-white text-black" : "text-neutral-400 hover:text-white"
               }`}
@@ -95,34 +143,74 @@ export function AiToolsLeaderboardContent({ initialData }: { initialData: ToolLe
             <tr>
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Tool</th>
-              <th className="px-4 py-3">Commits</th>
-              <th className="px-4 py-3">Code Volume</th>
-              <th className="px-4 py-3">Repos</th>
-              <th className="px-4 py-3">Owners</th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.commits?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Commits {sortIndicator(sortColumns.commits?.getIsSorted() ?? false)}
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.additions?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Code Volume {sortIndicator(sortColumns.additions?.getIsSorted() ?? false)}
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.repos?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Repos {sortIndicator(sortColumns.repos?.getIsSorted() ?? false)}
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.owners?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Owners {sortIndicator(sortColumns.owners?.getIsSorted() ?? false)}
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((tool, index) => (
-              <tr key={tool.key} className="border-t border-neutral-800/80 hover:bg-neutral-900/40">
-                <td className="px-4 py-3 font-semibold text-neutral-400">{index + 1}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <AiToolLogo toolKey={tool.key} label={tool.label} />
-                    <span className="font-semibold text-white">{tool.label}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-neutral-200">{formatCompactNumber(tool.commits)}</td>
-                <td className="px-4 py-3 text-neutral-300">
-                  {formatCompactNumber(tool.additions)}
-                </td>
-                <td className="px-4 py-3 text-neutral-300">
-                  {formatCompactNumber(tool.repoCount)}
-                </td>
-                <td className="px-4 py-3 text-neutral-300">
-                  {formatCompactNumber(tool.ownerCount)}
-                </td>
-              </tr>
-            ))}
+            {rows.map((row, index) => {
+              const tool = row.original;
+              return (
+                <tr
+                  key={tool.key}
+                  className="border-t border-neutral-800/80 hover:bg-neutral-900/40"
+                >
+                  <td className="px-4 py-3 font-semibold text-neutral-400">{index + 1}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <AiToolLogo toolKey={tool.key} label={tool.label} />
+                      <span className="font-semibold text-white">{tool.label}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-neutral-200">
+                    {formatCompactNumber(tool.commits)}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-300">
+                    {formatCompactNumber(tool.additions)}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-300">
+                    {formatCompactNumber(tool.repoCount)}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-300">
+                    {formatCompactNumber(tool.ownerCount)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -1,10 +1,13 @@
 "use client";
 
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { getCoreRowModel, getSortedRowModel, useReactTable } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "convex/react";
 import Image from "next/image";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { HumanAiBadges } from "@/components/badges/HumanAiBadges";
 import { api } from "@/convex/_generated/api";
 import { trackEvent } from "@/lib/tracking";
@@ -30,10 +33,69 @@ interface IndexedUserData {
 
 const sortModes = ["stars", "commits", "followers", "latest"] as const;
 
-function compareTiebreakers(a: IndexedUserData, b: IndexedUserData) {
-  if (b.totalCommits !== a.totalCommits) return b.totalCommits - a.totalCommits;
-  if (b.repoCount !== a.repoCount) return b.repoCount - a.repoCount;
-  return a.owner.localeCompare(b.owner);
+const columns: ColumnDef<IndexedUserData>[] = [
+  {
+    id: "owner",
+    accessorFn: (row) => row.owner,
+    enableSorting: false,
+  },
+  {
+    id: "totalStars",
+    accessorFn: (row) => row.totalStars,
+    sortDescFirst: true,
+  },
+  {
+    id: "totalCommits",
+    accessorFn: (row) => row.totalCommits,
+    sortDescFirst: true,
+  },
+  {
+    id: "repoCount",
+    accessorFn: (row) => row.repoCount,
+    enableSorting: false,
+  },
+  {
+    id: "mix",
+    accessorFn: (row) => row.botPercentage,
+    enableSorting: false,
+  },
+  {
+    id: "followers",
+    accessorFn: (row) => row.profile?.followers ?? 0,
+    sortDescFirst: true,
+  },
+  {
+    id: "lastIndexedAt",
+    accessorFn: (row) => row.lastIndexedAt,
+    sortDescFirst: true,
+  },
+];
+
+function modeToSorting(mode: (typeof sortModes)[number]): SortingState {
+  switch (mode) {
+    case "commits":
+      return [{ id: "totalCommits", desc: true }];
+    case "followers":
+      return [{ id: "followers", desc: true }];
+    case "latest":
+      return [{ id: "lastIndexedAt", desc: true }];
+    default:
+      return [{ id: "totalStars", desc: true }];
+  }
+}
+
+function sortingToMode(sorting: SortingState): (typeof sortModes)[number] {
+  const column = sorting[0]?.id;
+  if (column === "totalCommits") return "commits";
+  if (column === "followers") return "followers";
+  if (column === "lastIndexedAt") return "latest";
+  return "stars";
+}
+
+function sortIndicator(sorting: false | "asc" | "desc") {
+  if (sorting === "asc") return "↑";
+  if (sorting === "desc") return "↓";
+  return "";
 }
 
 export function DevelopersLeaderboardContent({
@@ -47,6 +109,8 @@ export function DevelopersLeaderboardContent({
     parseAsStringLiteral(sortModes).withDefault("stars")
   );
   const hasTrackedInitialSort = useRef(false);
+  const desktopScrollRef = useRef<HTMLDivElement>(null);
+  const [sorting, setSorting] = useState<SortingState>(() => modeToSorting(sortMode));
 
   useEffect(() => {
     if (!hasTrackedInitialSort.current) {
@@ -56,27 +120,47 @@ export function DevelopersLeaderboardContent({
     trackEvent("leaderboard_sort_change", { section: "developers", sort: sortMode });
   }, [sortMode]);
 
-  const sortedUsers = useMemo(() => {
-    const base = [...users];
+  useEffect(() => {
+    setSorting(modeToSorting(sortMode));
+  }, [sortMode]);
 
-    return base.sort((a, b) => {
-      switch (sortMode) {
-        case "stars":
-          return b.totalStars - a.totalStars || compareTiebreakers(a, b);
-        case "commits":
-          return b.totalCommits - a.totalCommits || compareTiebreakers(a, b);
-        case "followers": {
-          const followersA = a.profile?.followers ?? 0;
-          const followersB = b.profile?.followers ?? 0;
-          return followersB - followersA || compareTiebreakers(a, b);
+  const table = useReactTable({
+    data: users,
+    columns,
+    state: { sorting },
+    onSortingChange: (updater) => {
+      setSorting((old) => {
+        const next = typeof updater === "function" ? updater(old) : updater;
+        const nextMode = sortingToMode(next);
+        if (nextMode !== sortMode) {
+          void setSortMode(nextMode);
         }
-        case "latest":
-          return b.lastIndexedAt - a.lastIndexedAt || compareTiebreakers(a, b);
-        default:
-          return compareTiebreakers(a, b);
-      }
-    });
-  }, [users, sortMode]);
+        return next;
+      });
+    },
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const rows = table.getRowModel().rows;
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => desktopScrollRef.current,
+    estimateSize: () => 62,
+    overscan: 10,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+
+  const sortColumns = useMemo(
+    () => ({
+      stars: table.getColumn("totalStars"),
+      commits: table.getColumn("totalCommits"),
+      followers: table.getColumn("followers"),
+      latest: table.getColumn("lastIndexedAt"),
+    }),
+    [table]
+  );
 
   return (
     <div className="space-y-6 pb-8">
@@ -87,7 +171,10 @@ export function DevelopersLeaderboardContent({
             <button
               key={mode}
               type="button"
-              onClick={() => setSortMode(mode)}
+              onClick={() => {
+                void setSortMode(mode);
+                setSorting(modeToSorting(mode));
+              }}
               className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
                 sortMode === mode ? "bg-white text-black" : "text-neutral-400 hover:text-white"
               }`}
@@ -99,116 +186,181 @@ export function DevelopersLeaderboardContent({
       </div>
 
       <div className="hidden overflow-hidden rounded-xl border border-neutral-800 lg:block">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col style={{ width: "56px" }} />
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "24%" }} />
+            <col style={{ width: "12%" }} />
+          </colgroup>
           <thead className="bg-neutral-900/70 text-left text-xs uppercase tracking-widest text-neutral-500">
             <tr>
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Developer</th>
-              <th className="px-4 py-3">Stars</th>
-              <th className="px-4 py-3">Commits</th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.stars?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Stars {sortIndicator(sortColumns.stars?.getIsSorted() ?? false)}
+                </button>
+              </th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.commits?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Commits {sortIndicator(sortColumns.commits?.getIsSorted() ?? false)}
+                </button>
+              </th>
               <th className="px-4 py-3">Repos</th>
               <th className="px-4 py-3">Mix</th>
-              <th className="px-4 py-3">Last Indexed</th>
+              <th className="px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => sortColumns.latest?.toggleSorting()}
+                  className="inline-flex items-center gap-1 hover:text-white"
+                >
+                  Last Indexed {sortIndicator(sortColumns.latest?.getIsSorted() ?? false)}
+                </button>
+              </th>
             </tr>
           </thead>
-          <tbody>
-            {sortedUsers.map((user, index) => (
-              <tr
-                key={user.owner}
-                className="border-t border-neutral-800/80 hover:bg-neutral-900/40"
-              >
-                <td className="px-4 py-3 font-semibold text-neutral-400">{index + 1}</td>
-                <td className="px-4 py-3">
-                  <Link
-                    href={`/${encodeURIComponent(user.owner)}`}
-                    className="flex items-center gap-3 text-white hover:text-neutral-200"
-                  >
-                    <Image
-                      src={user.profile?.avatarUrl ?? user.avatarUrl}
-                      alt={`${user.owner} avatar`}
-                      width={32}
-                      height={32}
-                      className="h-8 w-8 rounded-full border border-neutral-700"
-                    />
-                    <div className="min-w-0">
-                      <div className="truncate font-semibold">
-                        {user.profile?.name ?? user.owner}
-                      </div>
-                      <div className="truncate text-xs text-neutral-500">@{user.owner}</div>
-                    </div>
-                  </Link>
-                </td>
-                <td className="px-4 py-3 font-semibold text-amber-300">
-                  {formatCompactNumber(user.totalStars)}
-                </td>
-                <td className="px-4 py-3 font-semibold text-neutral-200">
-                  {formatCompactNumber(user.totalCommits)}
-                </td>
-                <td className="px-4 py-3 text-neutral-300">
-                  {formatCompactNumber(user.repoCount)}
-                </td>
-                <td className="px-4 py-3">
-                  <HumanAiBadges
-                    humanPercentage={user.humanPercentage}
-                    aiPercentage={user.botPercentage}
-                    automationPercentage={user.automationPercentage}
-                  />
-                </td>
-                <td className="px-4 py-3 text-neutral-400">{formatDateTime(user.lastIndexedAt)}</td>
-              </tr>
-            ))}
-          </tbody>
         </table>
+
+        <div ref={desktopScrollRef} className="max-h-[680px] overflow-auto">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col style={{ width: "56px" }} />
+              <col style={{ width: "30%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "24%" }} />
+              <col style={{ width: "12%" }} />
+            </colgroup>
+            <tbody
+              className="relative block"
+              style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+            >
+              {virtualRows.map((virtualRow) => {
+                const row = rows[virtualRow.index];
+                const user = row.original;
+
+                return (
+                  <tr
+                    key={row.id}
+                    className="absolute left-0 top-0 table w-full table-fixed border-t border-neutral-800/80 hover:bg-neutral-900/40"
+                    style={{ transform: `translateY(${virtualRow.start}px)` }}
+                  >
+                    <td className="px-4 py-3 font-semibold text-neutral-400">
+                      {virtualRow.index + 1}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/${encodeURIComponent(user.owner)}`}
+                        className="flex items-center gap-3 text-white hover:text-neutral-200"
+                      >
+                        <Image
+                          src={user.profile?.avatarUrl ?? user.avatarUrl}
+                          alt={`${user.owner} avatar`}
+                          width={32}
+                          height={32}
+                          className="h-8 w-8 rounded-full border border-neutral-700"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold">
+                            {user.profile?.name ?? user.owner}
+                          </div>
+                          <div className="truncate text-xs text-neutral-500">@{user.owner}</div>
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-amber-300">
+                      {formatCompactNumber(user.totalStars)}
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-neutral-200">
+                      {formatCompactNumber(user.totalCommits)}
+                    </td>
+                    <td className="px-4 py-3 text-neutral-300">
+                      {formatCompactNumber(user.repoCount)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <HumanAiBadges
+                        humanPercentage={user.humanPercentage}
+                        aiPercentage={user.botPercentage}
+                        automationPercentage={user.automationPercentage}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-neutral-400">
+                      {formatDateTime(user.lastIndexedAt)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="space-y-3 lg:hidden">
-        {sortedUsers.map((user, index) => (
-          <Link
-            key={user.owner}
-            href={`/${encodeURIComponent(user.owner)}`}
-            className="block rounded-xl border border-neutral-800 bg-neutral-900/30 p-4"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="text-xs font-bold text-neutral-500">#{index + 1}</div>
-                <Image
-                  src={user.profile?.avatarUrl ?? user.avatarUrl}
-                  alt={`${user.owner} avatar`}
-                  width={36}
-                  height={36}
-                  className="h-9 w-9 rounded-full border border-neutral-700"
-                />
+        {rows.map((row, index) => {
+          const user = row.original;
+          return (
+            <Link
+              key={user.owner}
+              href={`/${encodeURIComponent(user.owner)}`}
+              className="block rounded-xl border border-neutral-800 bg-neutral-900/30 p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="text-xs font-bold text-neutral-500">#{index + 1}</div>
+                  <Image
+                    src={user.profile?.avatarUrl ?? user.avatarUrl}
+                    alt={`${user.owner} avatar`}
+                    width={36}
+                    height={36}
+                    className="h-9 w-9 rounded-full border border-neutral-700"
+                  />
+                  <div>
+                    <div className="font-semibold text-white">
+                      {user.profile?.name ?? user.owner}
+                    </div>
+                    <div className="text-xs text-neutral-500">@{user.owner}</div>
+                  </div>
+                </div>
+                <div className="text-xs text-neutral-500">{formatDateTime(user.lastIndexedAt)}</div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-300">
                 <div>
-                  <div className="font-semibold text-white">{user.profile?.name ?? user.owner}</div>
-                  <div className="text-xs text-neutral-500">@{user.owner}</div>
+                  <span className="text-neutral-500">Stars</span>{" "}
+                  {formatCompactNumber(user.totalStars)}
+                </div>
+                <div>
+                  <span className="text-neutral-500">Commits</span>{" "}
+                  {formatCompactNumber(user.totalCommits)}
+                </div>
+                <div>
+                  <span className="text-neutral-500">Repos</span>{" "}
+                  {formatCompactNumber(user.repoCount)}
                 </div>
               </div>
-              <div className="text-xs text-neutral-500">{formatDateTime(user.lastIndexedAt)}</div>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-300">
-              <div>
-                <span className="text-neutral-500">Stars</span>{" "}
-                {formatCompactNumber(user.totalStars)}
+              <div className="mt-3">
+                <HumanAiBadges
+                  humanPercentage={user.humanPercentage}
+                  aiPercentage={user.botPercentage}
+                  automationPercentage={user.automationPercentage}
+                />
               </div>
-              <div>
-                <span className="text-neutral-500">Commits</span>{" "}
-                {formatCompactNumber(user.totalCommits)}
-              </div>
-              <div>
-                <span className="text-neutral-500">Repos</span>{" "}
-                {formatCompactNumber(user.repoCount)}
-              </div>
-            </div>
-            <div className="mt-3">
-              <HumanAiBadges
-                humanPercentage={user.humanPercentage}
-                aiPercentage={user.botPercentage}
-                automationPercentage={user.automationPercentage}
-              />
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
