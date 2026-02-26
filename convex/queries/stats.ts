@@ -415,9 +415,9 @@ export const getGlobalSkillsLeaderboard = query({
     }
 
     return Array.from(skillsMap.values())
-      .map((entry) => ({
+      .map(({ owners, ...entry }) => ({
         ...entry,
-        ownerCount: entry.owners.size,
+        ownerCount: owners.size,
       }))
       .sort(
         (a, b) =>
