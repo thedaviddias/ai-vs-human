@@ -28,16 +28,19 @@ export const replacePrivateDailyStats = internalMutation({
         automationAdditions: v.number(),
       })
     ),
+    isFirstBatch: v.optional(v.boolean()),
   },
-  handler: async (ctx, { githubLogin, dailyStats }) => {
-    // Delete existing daily stats for this user
-    const existing = await ctx.db
-      .query("userPrivateDailyStats")
-      .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
-      .collect();
+  handler: async (ctx, { githubLogin, dailyStats, isFirstBatch = true }) => {
+    // Only delete existing stats if this is the first batch
+    if (isFirstBatch) {
+      const existing = await ctx.db
+        .query("userPrivateDailyStats")
+        .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
+        .collect();
 
-    for (const row of existing) {
-      await ctx.db.delete(row._id);
+      for (const row of existing) {
+        await ctx.db.delete(row._id);
+      }
     }
 
     // Insert fresh aggregated daily stats
@@ -84,16 +87,19 @@ export const replacePrivateWeeklyStats = internalMutation({
         totalDeletions: v.optional(v.number()),
       })
     ),
+    isFirstBatch: v.optional(v.boolean()),
   },
-  handler: async (ctx, { githubLogin, weeklyStats }) => {
-    // Delete existing weekly stats for this user
-    const existing = await ctx.db
-      .query("userPrivateWeeklyStats")
-      .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
-      .collect();
+  handler: async (ctx, { githubLogin, weeklyStats, isFirstBatch = true }) => {
+    // Only delete existing stats if this is the first batch
+    if (isFirstBatch) {
+      const existing = await ctx.db
+        .query("userPrivateWeeklyStats")
+        .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
+        .collect();
 
-    for (const row of existing) {
-      await ctx.db.delete(row._id);
+      for (const row of existing) {
+        await ctx.db.delete(row._id);
+      }
     }
 
     // Insert fresh aggregated weekly stats

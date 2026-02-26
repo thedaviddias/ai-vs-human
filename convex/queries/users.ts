@@ -212,8 +212,10 @@ async function mergePrivateStatsIntoUser(
 }
 
 export const getIndexedUsersWithProfiles = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    publicOnly: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
     const users = await getIndexedUsersHelper(ctx);
     const result = [];
 
@@ -226,9 +228,9 @@ export const getIndexedUsersWithProfiles = query({
       const hasPrivateData = profile?.hasPrivateData === true;
       const showPublicly = profile?.showPrivateDataPublicly !== false; // undefined = true (default)
 
-      // Merge private stats for cards only when user opts to show publicly
+      // Merge private stats for cards only when user opts to show publicly AND we don't strictly want public-only
       let mergedUser = user;
-      if (hasPrivateData && showPublicly) {
+      if (hasPrivateData && showPublicly && !args.publicOnly) {
         mergedUser = await mergePrivateStatsIntoUser(ctx, user);
       }
 

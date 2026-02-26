@@ -19,7 +19,7 @@ export const metadata = createMetadata({
 
 export default async function LeaderboardIndexPage() {
   const [users, repos, toolData] = await Promise.all([
-    fetchQuery(api.queries.users.getIndexedUsersWithProfiles),
+    fetchQuery(api.queries.users.getIndexedUsersWithProfiles, { publicOnly: true }),
     fetchQuery(api.queries.repos.getIndexedRepos),
     fetchQuery(api.queries.stats.getGlobalToolLeaderboards),
   ]);

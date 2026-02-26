@@ -80,7 +80,7 @@ export function HomeContent({
     useQuery(api.queries.globalStats.getGlobalDailyStats) ?? initialGlobalDailyStats;
   const globalSummary = useQuery(api.queries.globalStats.getGlobalSummary) ?? initialGlobalStats;
   const indexedUsers =
-    useQuery(api.queries.users.getIndexedUsersWithProfiles) ?? initialIndexedUsers;
+    useQuery(api.queries.users.getIndexedUsersWithProfiles, {}) ?? initialIndexedUsers;
   const globalToolLeaderboards =
     useQuery(api.queries.stats.getGlobalToolLeaderboards) ?? initialGlobalToolLeaderboards;
 

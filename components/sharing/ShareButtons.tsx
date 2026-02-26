@@ -275,12 +275,12 @@ export function ShareButtons({
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-48 origin-top-right overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-1.5 shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-100">
+          <div className="absolute right-0 mt-2 w-56 origin-top-right overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950 p-1.5 shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-in fade-in zoom-in-95 duration-100">
             <button
               type="button"
               onClick={() => handleDownloadImage(false)}
               disabled={downloadLoading}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50 whitespace-nowrap"
             >
               {downloadLoading ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent" />
@@ -295,7 +295,7 @@ export function ShareButtons({
                 type="button"
                 onClick={() => handleDownloadImage(true)}
                 disabled={downloadLoading}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50 whitespace-nowrap"
               >
                 <EyeOff className="h-4 w-4 text-purple-400" />
                 Download with Private
@@ -306,7 +306,7 @@ export function ShareButtons({
               <button
                 type="button"
                 onClick={handleNativeShare}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 whitespace-nowrap"
               >
                 <Share className="h-4 w-4 text-blue-400" />
                 System Share

@@ -751,7 +751,35 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   }
 
   return (
-    <div className="py-12">
+    <div className="py-12 relative">
+      {/* Management Actions - Top Right */}
+      <div className="absolute right-0 top-0 flex items-center gap-2 sm:right-4 sm:top-4 z-10">
+        <button
+          type="button"
+          onClick={handleResync}
+          disabled={isResyncing || isSyncInProgress || githubRepos.length === 0}
+          title={
+            githubRepos.length === 0
+              ? "GitHub repos not loaded — try refreshing the page"
+              : undefined
+          }
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-500 transition-all hover:bg-neutral-900 hover:text-neutral-300 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isSyncInProgress ? "animate-spin" : ""}`} />
+          Re-sync
+        </button>
+        {isActualOwner && !isPublicPreview && (
+          <button
+            type="button"
+            onClick={() => setViewMode("public")}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-500 transition-all hover:bg-neutral-900 hover:text-neutral-300 active:scale-95 sm:gap-2 sm:px-3 sm:py-2"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View as visitor
+          </button>
+        )}
+      </div>
+
       {/* User Header - Minimal & Focused */}
       <div className="flex flex-col items-center text-center">
         <div className="relative">
@@ -800,30 +828,6 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               isSyncing={isSyncInProgress}
             />
           </ErrorBoundary>
-          <button
-            type="button"
-            onClick={handleResync}
-            disabled={isResyncing || isSyncInProgress || githubRepos.length === 0}
-            title={
-              githubRepos.length === 0
-                ? "GitHub repos not loaded — try refreshing the page"
-                : undefined
-            }
-            className="flex items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs font-semibold transition-all hover:bg-neutral-800 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-4 sm:text-sm"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncInProgress ? "animate-spin" : ""}`} />
-            Re-sync
-          </button>
-          {isActualOwner && !isPublicPreview && (
-            <button
-              type="button"
-              onClick={() => setViewMode("public")}
-              className="flex items-center gap-1.5 rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs font-semibold transition-all hover:bg-neutral-800 active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              View as visitor
-            </button>
-          )}
         </div>
       </div>
 

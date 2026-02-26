@@ -107,7 +107,8 @@ export function DevelopersLeaderboardContent({
 }: {
   initialUsers: IndexedUserData[];
 }) {
-  const users = useQuery(api.queries.users.getIndexedUsersWithProfiles) ?? initialUsers;
+  const users =
+    useQuery(api.queries.users.getIndexedUsersWithProfiles, { publicOnly: true }) ?? initialUsers;
   const [sortMode, setSortMode] = useQueryState(
     "sort",
     parseAsStringLiteral(sortModes).withDefault("stars").withOptions({ scroll: false })

@@ -32,7 +32,13 @@ function StatsSummarySkeleton({ className }: { className?: string }) {
 
 export function OwnerPageSkeleton() {
   return (
-    <div className="py-12">
+    <div className="py-12 relative">
+      {/* Management Actions - Top Right */}
+      <div className="absolute right-0 top-0 flex items-center gap-2 sm:right-4 sm:top-4 z-10">
+        <SurfaceSkeleton className="h-7 w-[85px] rounded-lg sm:h-9 sm:w-[95px] bg-neutral-900" />
+        <SurfaceSkeleton className="h-7 w-[120px] rounded-lg sm:h-9 sm:w-[130px] bg-neutral-900" />
+      </div>
+
       {/* User Header Skeleton */}
       <div className="flex flex-col items-center text-center">
         <div className="h-24 w-24 animate-pulse rounded-full bg-neutral-800 border-4 border-neutral-900 shadow-2xl sm:h-32 sm:w-32" />
@@ -48,8 +54,6 @@ export function OwnerPageSkeleton() {
           <SurfaceSkeleton className="h-9 w-[95px] rounded-xl sm:h-10 sm:w-[110px]" />
           {/* More (...) */}
           <SurfaceSkeleton className="h-9 w-9 rounded-xl sm:h-10 sm:w-10" />
-          {/* Re-sync */}
-          <SurfaceSkeleton className="h-9 w-[85px] rounded-xl sm:h-10 sm:w-[95px]" />
         </div>
       </div>
 

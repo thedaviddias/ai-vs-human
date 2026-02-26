@@ -18,7 +18,9 @@ export const metadata = createMetadata({
 });
 
 export default async function LeaderboardDevelopersPage() {
-  const users = await fetchQuery(api.queries.users.getIndexedUsersWithProfiles);
+  const users = await fetchQuery(api.queries.users.getIndexedUsersWithProfiles, {
+    publicOnly: true,
+  });
 
   return (
     <>

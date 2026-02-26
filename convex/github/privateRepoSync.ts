@@ -110,6 +110,7 @@ export const privateRepoSync = internalAction({
         await ctx.runMutation(internal.github.ingestPrivateStats.replacePrivateDailyStats, {
           githubLogin,
           dailyStats: batch,
+          isFirstBatch: i === 0,
         });
       }
 
@@ -117,17 +118,11 @@ export const privateRepoSync = internalAction({
       const WEEKLY_BATCH_SIZE = 200;
       for (let i = 0; i < weeklyStats.length; i += WEEKLY_BATCH_SIZE) {
         const batch = weeklyStats.slice(i, i + WEEKLY_BATCH_SIZE);
-        if (i === 0) {
-          await ctx.runMutation(internal.github.ingestPrivateStats.replacePrivateWeeklyStats, {
-            githubLogin,
-            weeklyStats: batch,
-          });
-        } else {
-          await ctx.runMutation(internal.github.ingestPrivateStats.replacePrivateWeeklyStats, {
-            githubLogin,
-            weeklyStats: batch,
-          });
-        }
+        await ctx.runMutation(internal.github.ingestPrivateStats.replacePrivateWeeklyStats, {
+          githubLogin,
+          weeklyStats: batch,
+          isFirstBatch: i === 0,
+        });
       }
 
       // 6. Mark sync as complete (clears progress fields)
