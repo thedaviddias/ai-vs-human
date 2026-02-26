@@ -1,4 +1,11 @@
 import type { Doc } from "../_generated/dataModel";
+import {
+  AI_REVIEW_DETAILED_PATTERNS,
+  UNKNOWN_AI_KEY,
+  UNKNOWN_AI_LABEL,
+  UNKNOWN_AUTOMATION_KEY,
+  UNKNOWN_AUTOMATION_LABEL,
+} from "./attributionMappings";
 import type { Classification } from "./botDetector";
 import { CO_AUTHOR_AI_PATTERNS } from "./knownBots";
 
@@ -41,21 +48,6 @@ const DETAILED_AI_PATTERNS: Array<{ pattern: RegExp; match: DetailedMatch }> = [
     match: { key: "amazon-q-developer", label: "Amazon Q Developer" },
   },
   { pattern: /sweep(?:\[bot\])?/i, match: { key: "sweep", label: "Sweep" } },
-  { pattern: /coderabbit(?:ai)?(?:\[bot\])?/i, match: { key: "coderabbit", label: "CodeRabbit" } },
-  {
-    pattern: /seer-by-sentry(?:\[bot\])?/i,
-    match: { key: "seer-by-sentry", label: "Seer by Sentry" },
-  },
-  {
-    pattern: /sentry-ai-review(?:er)?(?:\[bot\])?/i,
-    match: { key: "sentry-ai-reviewer", label: "Sentry AI Reviewer" },
-  },
-  {
-    pattern: /qodo(?:-merge(?:-pro)?)?(?:\[bot\])?/i,
-    match: { key: "qodo-merge", label: "Qodo Merge" },
-  },
-  { pattern: /greptile(?:-apps)?(?:\[bot\])?/i, match: { key: "greptile", label: "Greptile" } },
-  { pattern: /korbit-ai(?:\[bot\])?/i, match: { key: "korbit-ai", label: "Korbit AI" } },
   { pattern: /codeium/i, match: { key: "codeium", label: "Codeium" } },
   { pattern: /windsurf/i, match: { key: "windsurf", label: "Windsurf" } },
   {
@@ -69,6 +61,7 @@ const DETAILED_AI_PATTERNS: Array<{ pattern: RegExp; match: DetailedMatch }> = [
   { pattern: /\bv0(?:-bot)?\b/i, match: { key: "v0", label: "v0" } },
   { pattern: /blackbox-ai/i, match: { key: "blackbox-ai", label: "Blackbox AI" } },
   { pattern: /\bclawd\b/i, match: { key: "clawd", label: "Clawd" } },
+  ...AI_REVIEW_DETAILED_PATTERNS,
 ];
 
 const DETAILED_BOT_PATTERNS: Array<{ pattern: RegExp; match: DetailedMatch }> = [
@@ -200,7 +193,7 @@ function classifyCommitForBreakdown(
       }
     }
 
-    return { kind: "ai", match: { key: "ai-unspecified", label: "Unspecified AI Assistant" } };
+    return { kind: "ai", match: { key: UNKNOWN_AI_KEY, label: UNKNOWN_AI_LABEL } };
   }
 
   if (classification === "other-bot") {
@@ -212,13 +205,22 @@ function classifyCommitForBreakdown(
     const identity = extractPreferredIdentity(commit);
     const normalized = identity ? normalizeIdentity(identity) : null;
     if (normalized) {
+      if (normalized.slug === "v1") {
+        return {
+          kind: "automation",
+          match: { key: "vercel", label: "Vercel Bot" },
+        };
+      }
       return {
         kind: "automation",
         match: { key: `bot-${normalized.slug}`, label: normalized.label },
       };
     }
 
-    return { kind: "automation", match: { key: "bot-unspecified", label: "Unspecified Bot" } };
+    return {
+      kind: "automation",
+      match: { key: UNKNOWN_AUTOMATION_KEY, label: UNKNOWN_AUTOMATION_LABEL },
+    };
   }
 
   return null;
@@ -283,6 +285,8 @@ export const KNOWN_AI_TOOL_KEYS: ReadonlySet<string> = new Set([
   ...Object.values(FIXED_AI_CLASSIFICATIONS).map((m) => m.key),
   // From DETAILED_AI_PATTERNS
   ...DETAILED_AI_PATTERNS.map((p) => p.match.key),
+  // Backward-compat key preserved from previous classifier output
+  "sentry-ai-reviewer",
   // Generic fallback
-  "ai-unspecified",
+  UNKNOWN_AI_KEY,
 ]);

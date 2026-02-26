@@ -1,3 +1,4 @@
+import type { AttributionClassification } from "./attributionMappings";
 import {
   classifyAiCoAuthor,
   classifyAiMessageMarker,
@@ -8,20 +9,7 @@ import {
   matchBotPattern,
 } from "./knownBots";
 
-export type Classification =
-  | "human"
-  | "dependabot"
-  | "renovate"
-  | "copilot"
-  | "claude"
-  | "cursor"
-  | "aider"
-  | "devin"
-  | "openai-codex"
-  | "gemini"
-  | "github-actions"
-  | "other-bot"
-  | "ai-assisted";
+export type Classification = AttributionClassification;
 
 export interface ClassificationResult {
   classification: Classification;

@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as classification___tests___fixtures_attributionFixtures from "../classification/__tests__/fixtures/attributionFixtures.js";
+import type * as classification_attributionMappings from "../classification/attributionMappings.js";
 import type * as classification_botDetector from "../classification/botDetector.js";
 import type * as classification_detailedBreakdown from "../classification/detailedBreakdown.js";
 import type * as classification_knownBots from "../classification/knownBots.js";
@@ -47,6 +49,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "classification/__tests__/fixtures/attributionFixtures": typeof classification___tests___fixtures_attributionFixtures;
+  "classification/attributionMappings": typeof classification_attributionMappings;
   "classification/botDetector": typeof classification_botDetector;
   "classification/detailedBreakdown": typeof classification_detailedBreakdown;
   "classification/knownBots": typeof classification_knownBots;

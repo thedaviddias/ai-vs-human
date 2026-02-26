@@ -86,6 +86,8 @@ const BOT_ICONS: Record<string, React.ComponentType<{ className?: string; size?:
   codecov: SiCodecov,
   sonarcloud: SiSonar,
   vercel: SiVercel,
+  v1: SiVercel,
+  "bot-v1": SiVercel,
   netlify: SiNetlify,
 };
 
@@ -99,6 +101,8 @@ const BOT_COLORS: Record<string, string> = {
   codecov: "text-[#F01F7A]",
   sonarcloud: "text-[#F3702A]",
   vercel: "text-white",
+  v1: "text-white",
+  "bot-v1": "text-white",
   netlify: "text-[#00C7B7]",
 };
 

@@ -1,5 +1,10 @@
 import { v } from "convex/values";
 import { query } from "../_generated/server";
+import {
+  UNKNOWN_AI_KEY,
+  UNKNOWN_AI_LABEL,
+  UNKNOWN_AUTOMATION_LABEL,
+} from "../classification/attributionMappings";
 import { KNOWN_AI_TOOL_KEYS } from "../classification/detailedBreakdown";
 
 /** AI tool mapping: weekly-stats field → display key/label */
@@ -24,8 +29,8 @@ const AI_TOOL_FIELDS = [
   {
     field: "aiAssisted",
     additionsField: "aiAssistedAdditions",
-    key: "ai-unspecified",
-    label: "Other AI Assisted",
+    key: UNKNOWN_AI_KEY,
+    label: UNKNOWN_AI_LABEL,
   },
 ] as const;
 
@@ -33,7 +38,7 @@ const BOT_FIELDS = [
   { field: "dependabot", key: "dependabot", label: "Dependabot" },
   { field: "renovate", key: "renovate", label: "Renovate" },
   { field: "githubActions", key: "github-actions", label: "GitHub Actions" },
-  { field: "otherBot", key: "other-bot", label: "Other Bots" },
+  { field: "otherBot", key: "other-bot", label: UNKNOWN_AUTOMATION_LABEL },
 ] as const;
 
 /**

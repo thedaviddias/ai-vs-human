@@ -75,4 +75,36 @@ describe("buildDetailedBreakdowns", () => {
       }),
     ]);
   });
+
+  it("maps v1 bot identity to Vercel Bot", () => {
+    const { botBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "other-bot", authorLogin: "v1[bot]" }),
+    ] as never);
+
+    expect(botBreakdown).toEqual([
+      expect.objectContaining({
+        key: "vercel",
+        label: "Vercel Bot",
+        commits: 1,
+      }),
+    ]);
+  });
+
+  it("uses explicit unknown labels when no strong signal is found", () => {
+    const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "ai-assisted", coAuthors: ["Jane <jane@example.com>"] }),
+      makeCommit({ classification: "other-bot", authorLogin: "" }),
+    ] as never);
+
+    expect(toolBreakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "ai-unspecified", label: "Unknown AI Assistant" }),
+      ])
+    );
+    expect(botBreakdown).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ key: "bot-unspecified", label: "Unknown Automation Bot" }),
+      ])
+    );
+  });
 });
