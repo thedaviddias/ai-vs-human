@@ -994,6 +994,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                     data={dailyData}
                     viewMode={userSummary?.hasLocData ? chartMode : "commits"}
                     isSyncing={isSyncInProgress}
+                    includesPrivateData={privateDailyStats != null && privateDailyStats.length > 0}
                   />
                 </div>
               </ErrorBoundary>

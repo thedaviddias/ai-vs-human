@@ -17,6 +17,8 @@ interface ContributionHeatmapProps {
   viewMode: "commits" | "loc";
   /** When true, a sync is in progress and data may be incomplete */
   isSyncing?: boolean;
+  /** When true, merged data includes private repos (which lack LOC data) */
+  includesPrivateData?: boolean;
 }
 
 // Layout constants
@@ -172,7 +174,12 @@ interface TooltipInfo {
   aiPercentage: string;
 }
 
-export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionHeatmapProps) {
+export function ContributionHeatmap({
+  data,
+  viewMode,
+  isSyncing,
+  includesPrivateData,
+}: ContributionHeatmapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [tooltip, setTooltip] = useState<TooltipInfo | null>(null);
@@ -366,8 +373,11 @@ export function ContributionHeatmap({ data, viewMode, isSyncing }: ContributionH
       {/* LOC data warning */}
       {locDataWarning && (
         <p className="mt-1 text-[11px] text-amber-500">
-          Code volume data may be incomplete for some commits.{" "}
-          {isSyncing ? "Enrichment in progress..." : "Try re-syncing."}
+          {includesPrivateData
+            ? "Code volume isn\u2019t available for private repos. LOC view reflects public repo activity only."
+            : isSyncing
+              ? "Code volume data may be incomplete for some commits. Enrichment in progress..."
+              : "Code volume data may be incomplete for some commits. Try re-syncing."}
         </p>
       )}
 
