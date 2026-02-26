@@ -573,3 +573,41 @@ describe("mergeDetailedBreakdowns", () => {
     expect(merged.botBreakdown).toEqual(publicBreakdown.botBreakdown);
   });
 });
+
+// ─── formatPercentage edge cases (via computeUserSummary) ──────────────
+
+describe("computeUserSummary — formatPercentage edge cases", () => {
+  it("formats very small percentages (< 0.1) with 2 decimal places", () => {
+    // ai = 1, total = 2000 → (1/2000)*100 = 0.05 → "0.05"
+    const input = [makeWeek({ human: 1999, copilot: 1, total: 2000 })];
+    const summary = computeUserSummary(input);
+    expect(summary.aiPercentage).toBe("0.05");
+  });
+
+  it("trims trailing zero from very small percentages rounded to X.X0", () => {
+    // ai = 1, total ≈ 1001 → (1/1001)*100 ≈ 0.0999 → toFixed(2) = "0.10" → trimmed to "0.1"
+    const input = [makeWeek({ human: 1000, copilot: 1, total: 1001 })];
+    const summary = computeUserSummary(input);
+    expect(summary.aiPercentage).toBe("0.1");
+  });
+
+  it("formats exactly zero as '0' (not '0.0')", () => {
+    const input = [makeWeek({ human: 100, total: 100 })];
+    const summary = computeUserSummary(input);
+    expect(summary.aiPercentage).toBe("0");
+  });
+
+  it("returns '0' for all percentages when total is 0", () => {
+    const summary = computeUserSummary([]);
+    expect(summary.aiPercentage).toBe("0");
+    expect(summary.humanPercentage).toBe("0");
+    expect(summary.automationPercentage).toBe("0");
+  });
+
+  it("formats LOC percentages < 0.1 correctly", () => {
+    // aiAdditions = 1, totalAdditions = 2000 → 0.05%
+    const input = [makeWeek({ humanAdditions: 1999, copilotAdditions: 1, totalAdditions: 2000 })];
+    const summary = computeUserSummary(input);
+    expect(summary.locBotPercentage).toBe("0.05");
+  });
+});

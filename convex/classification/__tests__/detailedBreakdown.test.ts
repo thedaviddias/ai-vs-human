@@ -107,4 +107,132 @@ describe("buildDetailedBreakdowns", () => {
       ])
     );
   });
+
+  it("accumulates multiple commits of the same AI tool", () => {
+    const { toolBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "copilot", additions: 100 }),
+      makeCommit({ classification: "copilot", additions: 250 }),
+      makeCommit({ classification: "copilot", additions: 50 }),
+    ] as never);
+
+    expect(toolBreakdown).toEqual([
+      { key: "github-copilot", label: "GitHub Copilot", commits: 3, additions: 400 },
+    ]);
+  });
+
+  it("accumulates multiple commits of the same bot", () => {
+    const { botBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "dependabot" }),
+      makeCommit({ classification: "dependabot" }),
+      makeCommit({ classification: "dependabot" }),
+    ] as never);
+
+    expect(botBreakdown).toEqual([{ key: "dependabot", label: "Dependabot", commits: 3 }]);
+  });
+
+  it("accumulates same other-bot identity across multiple commits", () => {
+    const { botBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "other-bot", authorLogin: "codecov[bot]" }),
+      makeCommit({ classification: "other-bot", authorLogin: "codecov[bot]" }),
+    ] as never);
+
+    expect(botBreakdown).toEqual([expect.objectContaining({ key: "codecov", commits: 2 })]);
+  });
+
+  it("ignores human commits entirely", () => {
+    const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "human", additions: 500 }),
+    ] as never);
+
+    expect(toolBreakdown).toEqual([]);
+    expect(botBreakdown).toEqual([]);
+  });
+
+  it("handles empty input", () => {
+    const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns([]);
+    expect(toolBreakdown).toEqual([]);
+    expect(botBreakdown).toEqual([]);
+  });
+
+  it("maps all fixed AI classifications correctly", () => {
+    const classifications = [
+      { classification: "copilot", key: "github-copilot" },
+      { classification: "claude", key: "claude-code" },
+      { classification: "cursor", key: "cursor" },
+      { classification: "aider", key: "aider" },
+      { classification: "devin", key: "devin" },
+      { classification: "openai-codex", key: "openai-codex" },
+      { classification: "gemini", key: "gemini" },
+    ];
+
+    const commits = classifications.map((c) => makeCommit({ classification: c.classification }));
+    const { toolBreakdown } = buildDetailedBreakdowns(commits as never);
+
+    for (const c of classifications) {
+      expect(toolBreakdown.find((t) => t.key === c.key)).toBeDefined();
+    }
+    expect(toolBreakdown).toHaveLength(classifications.length);
+  });
+
+  it("maps all fixed automation classifications correctly", () => {
+    const classifications = [
+      { classification: "dependabot", key: "dependabot" },
+      { classification: "renovate", key: "renovate" },
+      { classification: "github-actions", key: "github-actions" },
+    ];
+
+    const commits = classifications.map((c) => makeCommit({ classification: c.classification }));
+    const { botBreakdown } = buildDetailedBreakdowns(commits as never);
+
+    for (const c of classifications) {
+      expect(botBreakdown.find((b) => b.key === c.key)).toBeDefined();
+    }
+    expect(botBreakdown).toHaveLength(classifications.length);
+  });
+
+  it("sorts AI tools by commits descending, then additions descending", () => {
+    const { toolBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "copilot", additions: 100 }),
+      makeCommit({ classification: "claude", additions: 200 }),
+      makeCommit({ classification: "claude", additions: 300 }),
+    ] as never);
+
+    // Claude: 2 commits, 500 additions → first
+    // Copilot: 1 commit, 100 additions → second
+    expect(toolBreakdown[0].key).toBe("claude-code");
+    expect(toolBreakdown[1].key).toBe("github-copilot");
+  });
+
+  it("sorts bots by commits descending", () => {
+    const { botBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "renovate" }),
+      makeCommit({ classification: "dependabot" }),
+      makeCommit({ classification: "dependabot" }),
+      makeCommit({ classification: "dependabot" }),
+    ] as never);
+
+    expect(botBreakdown[0].key).toBe("dependabot");
+    expect(botBreakdown[1].key).toBe("renovate");
+  });
+
+  it("defaults additions to 0 when undefined", () => {
+    const { toolBreakdown } = buildDetailedBreakdowns([
+      makeCommit({ classification: "cursor" }),
+    ] as never);
+
+    expect(toolBreakdown[0].additions).toBe(0);
+  });
+
+  it("detects AI tools from co-authors in ai-assisted commits", () => {
+    const { toolBreakdown } = buildDetailedBreakdowns([
+      makeCommit({
+        classification: "ai-assisted",
+        coAuthors: ["copilot-swe-agent <copilot@github.com>"],
+      }),
+    ] as never);
+
+    expect(toolBreakdown).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: expect.stringContaining("copilot") })])
+    );
+  });
 });
