@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/:path(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "aivshuman.thedaviddias.com"
+        }
+      ],
+      "destination": "https://aivshuman.dev/:path",
+      "permanent": true
+    }
+  ]
+}
