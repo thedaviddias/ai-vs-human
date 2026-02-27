@@ -828,6 +828,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               type="user"
               botPercentage={userSummary?.aiPercentage ?? "0"}
               humanPercentage={userSummary?.humanPercentage ?? "0"}
+              automationPercentage={userSummary?.automationPercentage ?? "0"}
               includesPrivateData={hasPrivateData}
               isOwnProfile={isOwnProfile}
               isSyncing={isSyncInProgress}

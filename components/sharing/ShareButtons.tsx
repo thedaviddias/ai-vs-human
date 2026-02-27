@@ -21,6 +21,8 @@ interface ShareButtonsProps {
   /** Actual human-only percentage (excludes both AI and automation) */
   humanPercentage: string;
   targetId?: string;
+  /** Automation bot percentage (Dependabot, Renovate, GitHub Actions, etc.) */
+  automationPercentage?: string;
   /** Whether the user has private data linked */
   includesPrivateData?: boolean;
   /** Whether the viewer is the profile owner */
@@ -41,6 +43,7 @@ export function ShareButtons({
   type,
   botPercentage,
   humanPercentage,
+  automationPercentage,
   includesPrivateData,
   isOwnProfile,
   isSyncing,
@@ -103,19 +106,21 @@ export function ShareButtons({
   const canDownloadPrivate = isOwnProfile && includesPrivateData && type === "user";
 
   const getShareText = () => {
+    const humanVal = Number.parseFloat(humanPercentage);
     const aiVal = Number.parseFloat(botPercentage);
-    const humanVal = Number.parseFloat(humanPercentage).toFixed(1);
+    const autoVal = Number.parseFloat(automationPercentage ?? "0");
+    const nonHumanVal = aiVal + autoVal;
 
-    if (aiVal < 2) {
-      return `100% Organic Code. 🌿 My GitHub contributions are purely human-made. Check my breakdown:`;
+    if (humanVal >= 98) {
+      return "100% Organic Code. 🌿 My GitHub contributions are purely human-made. Check my breakdown:";
     }
-    if (aiVal < 10) {
-      return `Proof of Human: ${humanVal}% of my code is handcrafted. ✍️ Still keeping it real in the age of AI:`;
+    if (humanVal >= 90) {
+      return `Proof of Human: ${humanVal.toFixed(1)}% of my code is handcrafted. ✍️ Still keeping it real in the age of AI:`;
     }
-    if (aiVal < 40) {
-      return `Turns out I'm ${aiVal}% Cyborg. 🦾 AI is my co-pilot on GitHub. Check the breakdown:`;
+    if (humanVal >= 60) {
+      return `Turns out ${nonHumanVal.toFixed(1)}% of my code involves AI or automation. 🦾 Check the breakdown:`;
     }
-    return `The future of coding is collaborative. 🤖 ${aiVal}% of my commits are AI-assisted. Am I more bot than you?`;
+    return `The future of coding is collaborative. 🤖 ${nonHumanVal.toFixed(1)}% of my commits are AI-assisted or automated. Am I more bot than you?`;
   };
 
   const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(getShareText())}&url=${encodeURIComponent(url)}`;
