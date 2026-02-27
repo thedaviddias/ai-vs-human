@@ -74,7 +74,6 @@ const AI_ASSISTED_PATTERNS: Array<{
   { pattern: /bolt(?:-agent)?/i, match: { key: "bolt", label: "Bolt" } },
   { pattern: /\bv0(?:-bot)?\b/i, match: { key: "v0", label: "v0" } },
   { pattern: /blackbox-ai/i, match: { key: "blackbox-ai", label: "Blackbox AI" } },
-  { pattern: /\bclawd\b/i, match: { key: "clawd", label: "Clawd" } },
 ];
 
 const AUTOMATION_PATTERNS: Array<{

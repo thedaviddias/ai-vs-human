@@ -106,7 +106,6 @@ export const CO_AUTHOR_AI_PATTERNS: RegExp[] = [
   /\bcody\b/i,
   /continue\.dev/i,
   /sweep/i,
-  /\bclawd\b/i,
   ...AI_REVIEW_COAUTHOR_CLASSIFICATION_PATTERNS.map(({ pattern }) => pattern),
 ];
 

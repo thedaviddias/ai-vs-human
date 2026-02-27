@@ -60,7 +60,6 @@ const DETAILED_AI_PATTERNS: Array<{ pattern: RegExp; match: DetailedMatch }> = [
   { pattern: /bolt(?:-agent)?/i, match: { key: "bolt", label: "Bolt" } },
   { pattern: /\bv0(?:-bot)?\b/i, match: { key: "v0", label: "v0" } },
   { pattern: /blackbox-ai/i, match: { key: "blackbox-ai", label: "Blackbox AI" } },
-  { pattern: /\bclawd\b/i, match: { key: "clawd", label: "Clawd" } },
   ...AI_REVIEW_DETAILED_PATTERNS,
 ];
 
