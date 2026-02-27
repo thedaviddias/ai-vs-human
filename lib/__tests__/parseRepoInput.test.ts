@@ -86,6 +86,22 @@ describe("parseRepoInput", () => {
         name: "react",
       });
     });
+
+    it("parses URL with .git suffix", () => {
+      expect(parseRepoInput("https://github.com/facebook/react.git")).toEqual({
+        type: "repo",
+        owner: "facebook",
+        name: "react",
+      });
+    });
+
+    it("parses URL without protocol and .git suffix", () => {
+      expect(parseRepoInput("github.com/facebook/react.git")).toEqual({
+        type: "repo",
+        owner: "facebook",
+        name: "react",
+      });
+    });
   });
 
   // ─── GitHub URL with just username ────────────────────────────────────

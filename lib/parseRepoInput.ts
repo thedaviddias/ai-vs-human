@@ -13,7 +13,7 @@ export function parseRepoInput(input: string): ParsedInput | null {
 
   // Try full GitHub URL with repo
   const urlRepoMatch = trimmed.match(
-    /(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/
+    /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?$/i
   );
   if (urlRepoMatch) {
     return { type: "repo", owner: urlRepoMatch[1], name: urlRepoMatch[2] };
