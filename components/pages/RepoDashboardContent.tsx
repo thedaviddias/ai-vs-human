@@ -294,6 +294,7 @@ export function RepoDashboardContent({
                 label={fullName}
                 type="repo"
                 botPercentage={summary?.aiPercentage ?? "0"}
+                humanPercentage={summary?.humanPercentage ?? "0"}
                 targetId="repo-insights"
                 isSyncing={isSyncInProgress}
               />

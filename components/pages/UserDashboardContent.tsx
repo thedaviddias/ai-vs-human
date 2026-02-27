@@ -823,6 +823,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               label={owner}
               type="user"
               botPercentage={userSummary?.aiPercentage ?? "0"}
+              humanPercentage={userSummary?.humanPercentage ?? "0"}
               includesPrivateData={hasPrivateData}
               isOwnProfile={isOwnProfile}
               isSyncing={isSyncInProgress}

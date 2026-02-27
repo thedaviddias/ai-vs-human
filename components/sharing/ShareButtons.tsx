@@ -18,6 +18,8 @@ interface ShareButtonsProps {
   label: string;
   type: "user" | "repo";
   botPercentage: string;
+  /** Actual human-only percentage (excludes both AI and automation) */
+  humanPercentage: string;
   targetId?: string;
   /** Whether the user has private data linked */
   includesPrivateData?: boolean;
@@ -38,6 +40,7 @@ export function ShareButtons({
   label,
   type,
   botPercentage,
+  humanPercentage,
   includesPrivateData,
   isOwnProfile,
   isSyncing,
@@ -101,7 +104,7 @@ export function ShareButtons({
 
   const getShareText = () => {
     const aiVal = Number.parseFloat(botPercentage);
-    const humanVal = (100 - aiVal).toFixed(1);
+    const humanVal = Number.parseFloat(humanPercentage).toFixed(1);
 
     if (aiVal < 2) {
       return `100% Organic Code. 🌿 My GitHub contributions are purely human-made. Check my breakdown:`;
