@@ -24,6 +24,65 @@ export const getHumanCommits = internalQuery({
 });
 
 /**
+ * Gets all cached PR metadata for a repo.
+ * Used by classifyPRs to avoid re-fetching PRs from GitHub on resyncs.
+ */
+export const getCachedPRMetadata = internalQuery({
+  args: { repoId: v.id("repos") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("prMetadata")
+      .withIndex("by_repo", (q) => q.eq("repoId", args.repoId))
+      .collect();
+  },
+});
+
+/**
+ * Caches PR metadata for a specific PR in a repo.
+ * Upserts to avoid duplicates if the PR was already cached.
+ */
+export const cachePRMetadata = internalMutation({
+  args: {
+    repoId: v.id("repos"),
+    prNumber: v.number(),
+    authorLogin: v.string(),
+    authorType: v.string(),
+    body: v.optional(v.string()),
+    branchName: v.optional(v.string()),
+    labels: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Check if this PR is already cached
+    const existing = await ctx.db
+      .query("prMetadata")
+      .withIndex("by_repo_and_pr", (q) => q.eq("repoId", args.repoId).eq("prNumber", args.prNumber))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        authorLogin: args.authorLogin,
+        authorType: args.authorType,
+        body: args.body,
+        branchName: args.branchName,
+        labels: args.labels,
+        fetchedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("prMetadata", {
+        repoId: args.repoId,
+        prNumber: args.prNumber,
+        authorLogin: args.authorLogin,
+        authorType: args.authorType,
+        body: args.body,
+        branchName: args.branchName,
+        labels: args.labels,
+        fetchedAt: Date.now(),
+      });
+    }
+  },
+});
+
+/**
  * Reclassifies commits based on PR-level analysis.
  * Called after checking PR metadata for bot authors / AI markers.
  */

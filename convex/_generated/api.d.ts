@@ -23,6 +23,7 @@ import type * as github_classifyPRsHelpers from "../github/classifyPRsHelpers.js
 import type * as github_fetchCommitStats from "../github/fetchCommitStats.js";
 import type * as github_fetchCommits from "../github/fetchCommits.js";
 import type * as github_fetchRepo from "../github/fetchRepo.js";
+import type * as github_githubApi from "../github/githubApi.js";
 import type * as github_ingestCommits from "../github/ingestCommits.js";
 import type * as github_ingestPrivateStats from "../github/ingestPrivateStats.js";
 import type * as github_ingestRepo from "../github/ingestRepo.js";
@@ -78,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   "github/fetchCommitStats": typeof github_fetchCommitStats;
   "github/fetchCommits": typeof github_fetchCommits;
   "github/fetchRepo": typeof github_fetchRepo;
+  "github/githubApi": typeof github_githubApi;
   "github/ingestCommits": typeof github_ingestCommits;
   "github/ingestPrivateStats": typeof github_ingestPrivateStats;
   "github/ingestRepo": typeof github_ingestRepo;

@@ -71,12 +71,29 @@ export default defineSchema({
         })
       )
     ),
+    // Rate-limit optimization fields
+    etag: v.optional(v.string()), // GitHub ETag for conditional requests (304 = free)
+    aiConfigsLastCheckedAt: v.optional(v.number()), // Skip tree traversal if recently checked
   })
     .index("by_fullName", ["fullName"])
     .index("by_owner", ["owner"])
     .index("by_owner_syncStatus", ["owner", "syncStatus"])
     .index("by_syncStatus", ["syncStatus"])
     .index("by_githubId", ["githubId"]),
+
+  // Cached PR metadata — avoids re-fetching unchanged PRs on every resync
+  prMetadata: defineTable({
+    repoId: v.id("repos"),
+    prNumber: v.number(),
+    authorLogin: v.string(),
+    authorType: v.string(), // "User" | "Bot" | "Organization"
+    body: v.optional(v.string()), // Truncated to first 500 chars for pattern matching
+    branchName: v.optional(v.string()),
+    labels: v.array(v.string()),
+    fetchedAt: v.number(),
+  })
+    .index("by_repo", ["repoId"])
+    .index("by_repo_and_pr", ["repoId", "prNumber"]),
 
   commits: defineTable({
     repoId: v.id("repos"),

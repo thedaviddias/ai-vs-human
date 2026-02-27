@@ -38,6 +38,13 @@ export const getReposByFullNames = query({
   },
 });
 
+export const getRepoById = internalQuery({
+  args: { repoId: v.id("repos") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.repoId);
+  },
+});
+
 export const getAllRepos = internalQuery({
   args: {},
   handler: async (ctx) => {

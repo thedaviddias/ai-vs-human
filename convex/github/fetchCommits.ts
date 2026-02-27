@@ -5,6 +5,7 @@ import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import type { CommitPayload } from "../classification/botDetector";
 import { classifyCommit } from "../classification/botDetector";
+import { extractRateLimitInfo, getGitHubHeaders, getRetryDelayMs } from "./githubApi";
 
 const PER_PAGE = 100;
 
@@ -43,19 +44,14 @@ export const fetchCommits = internalAction({
     const url = `https://api.github.com/repos/${args.owner}/${args.name}/commits?per_page=${PER_PAGE}&page=${args.page}&since=${since}`;
 
     const response = await fetch(url, {
-      headers: {
-        Authorization: `token ${token}`,
-        Accept: "application/vnd.github.v3+json",
-      },
+      headers: getGitHubHeaders(token),
     });
 
     // Handle rate limiting
-    const remaining = response.headers.get("X-RateLimit-Remaining");
-    const resetTime = response.headers.get("X-RateLimit-Reset");
+    const rateLimitInfo = extractRateLimitInfo(response);
 
-    if (response.status === 403 && remaining === "0" && resetTime) {
-      const resetMs = parseInt(resetTime, 10) * 1000;
-      const delayMs = Math.max(0, resetMs - Date.now()) + 1000;
+    if (rateLimitInfo.isRateLimited) {
+      const delayMs = getRetryDelayMs(rateLimitInfo);
       await ctx.scheduler.runAfter(delayMs, internal.github.fetchCommits.fetchCommits, {
         repoId: args.repoId,
         owner: args.owner,
@@ -131,7 +127,7 @@ export const fetchCommits = internalAction({
 
     if (hasNextPage) {
       // Small delay between pages to be respectful to GitHub API
-      const delay = remaining && parseInt(remaining, 10) < 100 ? 500 : 100;
+      const delay = rateLimitInfo.remaining !== null && rateLimitInfo.remaining < 100 ? 500 : 100;
       await ctx.scheduler.runAfter(delay, internal.github.fetchCommits.fetchCommits, {
         repoId: args.repoId,
         owner: args.owner,

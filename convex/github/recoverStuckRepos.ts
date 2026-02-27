@@ -2,6 +2,7 @@
 
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { extractRateLimitInfo, getGitHubHeaders } from "./githubApi";
 
 /**
  * Recovery cron that self-heals stuck repo queues.
@@ -23,7 +24,7 @@ import { internalAction } from "../_generated/server";
 const STUCK_SYNCING_THRESHOLD_MS = 15 * 60 * 1000;
 
 /** Stagger scheduling across owners to avoid GitHub API rate limit spikes. */
-const DELAY_PER_OWNER_MS = 5_000;
+const DELAY_PER_OWNER_MS = 15_000;
 
 /** Cap the number of owners recovered per cron run. */
 const MAX_OWNERS_PER_RUN = 20;
@@ -49,7 +50,31 @@ export const recoverStuckRepos = internalAction({
       });
     }
 
-    // ── Step 2: Re-kick orphaned pending queues ───────────────────────
+    // ── Step 2: Check rate-limit state before re-kicking queues ──────
+    // Make a lightweight API call to check current rate-limit headroom.
+    // If we're running low, skip re-kicking to avoid making things worse.
+    const token = process.env.GITHUB_TOKEN;
+    if (token) {
+      try {
+        const response = await fetch("https://api.github.com/rate_limit", {
+          headers: getGitHubHeaders(token),
+        });
+        if (response.ok) {
+          const rateLimitInfo = extractRateLimitInfo(response);
+          if (rateLimitInfo.remaining !== null && rateLimitInfo.remaining < 200) {
+            console.log(
+              `[recoverStuckRepos] Rate limit low (${rateLimitInfo.remaining} remaining), ` +
+                `skipping queue re-kicks. Reset ${stuckSyncing.length} stuck syncing repos only.`
+            );
+            return;
+          }
+        }
+      } catch {
+        // If we can't check rate limit, proceed cautiously
+      }
+    }
+
+    // ── Step 3: Re-kick orphaned pending queues ───────────────────────
     // Build a map of owner → { hasPending, hasSyncing } from the
     // *current* state (after the resets above took effect).
     //

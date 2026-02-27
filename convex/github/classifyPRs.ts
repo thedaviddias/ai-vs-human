@@ -17,7 +17,11 @@ import {
   aggregatePrAttribution,
   type PrAttributionAggregateInput,
 } from "../classification/prAttribution";
+import { extractRateLimitInfo, getGitHubHeaders } from "./githubApi";
 import { computeStatsFromCommits } from "./statsComputation";
+
+/** Maximum number of individual PR fetches per repo to cap API usage. */
+const MAX_PR_FETCHES_PER_REPO = 50;
 
 /**
  * Post-processing step: checks PR metadata for squash/merge commits.
@@ -28,7 +32,7 @@ import { computeStatsFromCommits } from "./statsComputation";
  *
  * Solution: After all commits are fetched, we:
  * 1. Find commits that reference PR numbers (squash merges, merge commits)
- * 2. Batch-fetch PR metadata from GitHub API
+ * 2. Batch-fetch PR metadata from GitHub API (with pacing and rate-limit checks)
  * 3. If the PR was created by a bot, reclassify the commit
  * 4. If the PR body/branch/labels contain AI markers, reclassify as ai-assisted
  * 5. Finalize: recompute stats and mark repo as synced
@@ -71,14 +75,77 @@ export const classifyPRs = internalAction({
 
         if (prCommitMap.size > 0) {
           // 3. Fetch PR metadata from GitHub and classify
+          //    - Check cached PR metadata first to avoid re-fetching
+          //    - Cap at MAX_PR_FETCHES_PER_REPO to limit API usage
+          //    - Sort descending (newest PRs first — most likely to be AI-generated)
+          //    - Add pacing between requests to avoid rate-limit bursts
           const reclassifications: Array<{
             commitId: Id<"commits">;
             classification: string;
           }> = [];
 
-          for (const prNumber of prCommitMap.keys()) {
+          // Load cached PR metadata for this repo
+          const cachedPRs = await ctx.runQuery(
+            internal.github.classifyPRsHelpers.getCachedPRMetadata,
+            { repoId: args.repoId }
+          );
+          const cachedPRMap = new Map(cachedPRs.map((pr) => [pr.prNumber, pr]));
+
+          // Sort PR numbers descending (newest first)
+          const prNumbers = [...prCommitMap.keys()].sort((a, b) => b - a);
+
+          let fetchCount = 0;
+          for (const prNumber of prNumbers) {
             try {
-              const prData = await fetchPR(token, args.owner, args.name, prNumber);
+              let prData: PRData | null = null;
+
+              // Check cache first
+              const cached = cachedPRMap.get(prNumber);
+              if (cached) {
+                prData = {
+                  number: prNumber,
+                  user: { login: cached.authorLogin, type: cached.authorType },
+                  body: cached.body ?? null,
+                  labels: cached.labels.map((name) => ({ name })),
+                  head: { ref: cached.branchName ?? "" },
+                };
+              } else if (fetchCount < MAX_PR_FETCHES_PER_REPO) {
+                // Fetch from GitHub with rate-limit awareness
+                const result = await fetchPRWithRateLimit(token, args.owner, args.name, prNumber);
+
+                if (result.rateLimited) {
+                  console.log(
+                    `[classifyPRs] Rate limited at PR #${prNumber} for ${args.owner}/${args.name}, proceeding with partial classifications`
+                  );
+                  break;
+                }
+
+                prData = result.prData;
+                fetchCount++;
+
+                // Cache the PR metadata for future resyncs
+                if (prData) {
+                  await ctx.runMutation(internal.github.classifyPRsHelpers.cachePRMetadata, {
+                    repoId: args.repoId,
+                    prNumber,
+                    authorLogin: prData.user.login,
+                    authorType: prData.user.type,
+                    body: prData.body?.slice(0, 500) ?? undefined,
+                    branchName: prData.head?.ref ?? undefined,
+                    labels: prData.labels.map((l) => l.name),
+                  });
+                }
+
+                // Pacing between API calls
+                const delay =
+                  result.rateLimitInfo &&
+                  result.rateLimitInfo.remaining !== null &&
+                  result.rateLimitInfo.remaining < 100
+                    ? 500
+                    : 100;
+                await new Promise((resolve) => setTimeout(resolve, delay));
+              }
+
               if (!prData) continue;
 
               const commitIds = prCommitMap.get(prNumber) ?? [];
@@ -190,22 +257,35 @@ export interface PRData {
   };
 }
 
-async function fetchPR(
+interface FetchPRResult {
+  prData: PRData | null;
+  rateLimited: boolean;
+  rateLimitInfo: import("./githubApi").GitHubRateLimitInfo | null;
+}
+
+async function fetchPRWithRateLimit(
   token: string,
   owner: string,
   name: string,
   prNumber: number
-): Promise<PRData | null> {
+): Promise<FetchPRResult> {
   const url = `https://api.github.com/repos/${owner}/${name}/pulls/${prNumber}`;
   const response = await fetch(url, {
-    headers: {
-      Authorization: `token ${token}`,
-      Accept: "application/vnd.github.v3+json",
-    },
+    headers: getGitHubHeaders(token),
   });
 
-  if (!response.ok) return null;
-  return response.json();
+  const rateLimitInfo = extractRateLimitInfo(response);
+
+  if (rateLimitInfo.isRateLimited) {
+    return { prData: null, rateLimited: true, rateLimitInfo };
+  }
+
+  if (!response.ok) {
+    return { prData: null, rateLimited: false, rateLimitInfo };
+  }
+
+  const prData: PRData = await response.json();
+  return { prData, rateLimited: false, rateLimitInfo };
 }
 
 // ─── PR classification patterns ───────────────────────────────────────
