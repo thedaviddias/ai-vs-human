@@ -37,6 +37,7 @@ export function Header() {
             ) : (
               <Link
                 href="/login"
+                title="Sign in to analyze your private repos"
                 className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-sm font-medium text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
               >
                 <svg

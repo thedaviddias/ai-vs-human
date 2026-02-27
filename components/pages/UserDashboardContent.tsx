@@ -1,7 +1,17 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Bell, CheckCircle2, Clock, Eye, Loader2, RefreshCw, Star, XCircle } from "lucide-react";
+import {
+  Bell,
+  CheckCircle2,
+  Clock,
+  Eye,
+  Loader2,
+  Lock,
+  RefreshCw,
+  Star,
+  XCircle,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
@@ -97,7 +107,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   // We use `getMyGitHubLogin` (returns GitHub login from the `username` field)
   // instead of `session.user.name` — which is the GitHub display name
   // (e.g., "David Dias") and doesn't match the URL's `owner` param.
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
   const myGitHubLogin = useQuery(api.auth.getMyGitHubLogin, session?.user ? {} : "skip");
 
   // Profile query — needed early for isOwnProfile fallback and privacy toggle
@@ -876,6 +886,29 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             totalCommitsFound={privateSyncStatus?.totalCommitsFound}
             privateCommitCount={privateCommitCount}
           />
+        </div>
+      )}
+
+      {/* Sign-in CTA — shown to non-authenticated visitors on any profile */}
+      {!session?.user && !isSessionPending && (
+        <div className="mx-auto mt-8 max-w-xl">
+          <Link
+            href="/login"
+            className="group flex items-center gap-4 rounded-xl border border-dashed border-neutral-700 bg-neutral-900/20 p-5 transition-colors hover:border-neutral-500 hover:bg-neutral-900/40"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/5 ring-1 ring-white/10">
+              <Lock className="h-5 w-5 text-neutral-400 transition-colors group-hover:text-white" />
+            </div>
+            <div>
+              <span className="text-sm font-semibold text-white">
+                Sign in to analyze your private repos
+              </span>
+              <p className="mt-0.5 text-xs text-neutral-500">
+                Add private repo activity to your heatmap. We only store aggregate counts — no code
+                or repo names.
+              </p>
+            </div>
+          </Link>
         </div>
       )}
 
