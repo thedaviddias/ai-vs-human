@@ -17,11 +17,20 @@ import {
   SiSentry,
   SiSnyk,
   SiSonar,
+  SiStackblitz,
+  SiV0,
   SiVercel,
   SiWeblate,
   SiWindsurf,
 } from "@icons-pack/react-simple-icons";
-import { Bot, Brain, Sparkles, Terminal } from "lucide-react";
+import { Bot, Sparkles, Terminal } from "lucide-react";
+import {
+  GreptileIcon,
+  LovableIcon,
+  OpenAIIcon,
+  SourcegraphIcon,
+  TabnineIcon,
+} from "@/components/icons/custom-tool-icons";
 
 const AI_SIMPLE_ICON_KEYS = new Set([
   "github-copilot",
@@ -34,6 +43,13 @@ const AI_SIMPLE_ICON_KEYS = new Set([
   "qodo-merge",
   "windsurf",
   "replit-agent",
+  "v0",
+  "bolt",
+  "openai-codex",
+  "lovable",
+  "greptile",
+  "tabnine",
+  "sourcegraph-cody",
 ]);
 
 const AI_ICONS: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
@@ -42,7 +58,7 @@ const AI_ICONS: Record<string, React.ComponentType<{ className?: string; size?: 
   cursor: SiCursor,
   aider: Terminal,
   devin: Bot,
-  "openai-codex": Brain,
+  "openai-codex": OpenAIIcon,
   gemini: SiGooglegemini,
   "amazon-q-developer": Bot,
   sweep: Sparkles,
@@ -50,17 +66,18 @@ const AI_ICONS: Record<string, React.ComponentType<{ className?: string; size?: 
   "seer-by-sentry": SiSentry,
   "sentry-ai-reviewer": SiSentry,
   "qodo-merge": SiQodo,
-  greptile: Sparkles,
+  greptile: GreptileIcon,
   "korbit-ai": Sparkles,
   codeium: Sparkles,
   windsurf: SiWindsurf,
-  "sourcegraph-cody": Sparkles,
-  tabnine: Sparkles,
+  "sourcegraph-cody": SourcegraphIcon,
+  tabnine: TabnineIcon,
   "continue-dev": Sparkles,
   "replit-agent": SiReplit,
-  bolt: Sparkles,
-  v0: Sparkles,
+  bolt: SiStackblitz,
+  v0: SiV0,
   "blackbox-ai": Sparkles,
+  lovable: LovableIcon,
 };
 
 const AI_COLORS: Record<string, string> = {
@@ -69,7 +86,7 @@ const AI_COLORS: Record<string, string> = {
   cursor: "text-[#00A3FF]",
   aider: "text-green-400",
   devin: "text-purple-400",
-  "openai-codex": "text-teal-400",
+  "openai-codex": "text-[#181717] dark:text-white",
   gemini: "text-[#4285F4]",
   coderabbit: "text-[#FF6B2B]",
   "seer-by-sentry": "text-[#362D59]",
@@ -77,6 +94,12 @@ const AI_COLORS: Record<string, string> = {
   "qodo-merge": "text-[#7C3AED]",
   windsurf: "text-[#00C0FF]",
   "replit-agent": "text-[#F26207]",
+  v0: "text-[#181717] dark:text-white",
+  bolt: "text-[#1389FD]",
+  greptile: "text-[#30B77E]",
+  tabnine: "text-[#FF2210]",
+  "sourcegraph-cody": "text-[#00CBEC]",
+  lovable: "text-[#1E52F1]",
 };
 
 const BOT_ICONS: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {

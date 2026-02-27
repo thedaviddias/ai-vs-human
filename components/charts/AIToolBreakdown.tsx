@@ -9,10 +9,19 @@ import {
   SiQodo,
   SiReplit,
   SiSentry,
+  SiStackblitz,
+  SiV0,
   SiWindsurf,
 } from "@icons-pack/react-simple-icons";
-import { Bot, Brain, Sparkles, Terminal } from "lucide-react";
+import { Bot, Sparkles, Terminal } from "lucide-react";
 import { useMemo } from "react";
+import {
+  GreptileIcon,
+  LovableIcon,
+  OpenAIIcon,
+  SourcegraphIcon,
+  TabnineIcon,
+} from "@/components/icons/custom-tool-icons";
 import { type AiToolBreakdownItem, sortAiBreakdown } from "./toolBreakdownSort";
 
 // Keys whose icons come from simple-icons (use `size` prop instead of className)
@@ -27,6 +36,13 @@ const SIMPLE_ICON_KEYS = new Set([
   "qodo-merge",
   "windsurf",
   "replit-agent",
+  "v0",
+  "bolt",
+  "openai-codex",
+  "lovable",
+  "greptile",
+  "tabnine",
+  "sourcegraph-cody",
 ]);
 
 interface AIToolBreakdownProps {
@@ -40,7 +56,7 @@ const ToolIcons: Record<string, React.ComponentType<{ className?: string; size?:
   cursor: SiCursor,
   aider: Terminal,
   devin: Bot,
-  "openai-codex": Brain,
+  "openai-codex": OpenAIIcon,
   gemini: SiGooglegemini,
   "amazon-q-developer": Bot,
   sweep: Sparkles,
@@ -48,17 +64,18 @@ const ToolIcons: Record<string, React.ComponentType<{ className?: string; size?:
   "seer-by-sentry": SiSentry,
   "sentry-ai-reviewer": SiSentry,
   "qodo-merge": SiQodo,
-  greptile: Sparkles,
+  greptile: GreptileIcon,
   "korbit-ai": Sparkles,
   codeium: Sparkles,
   windsurf: SiWindsurf,
-  "sourcegraph-cody": Sparkles,
-  tabnine: Sparkles,
+  "sourcegraph-cody": SourcegraphIcon,
+  tabnine: TabnineIcon,
   "continue-dev": Sparkles,
   "replit-agent": SiReplit,
-  bolt: Sparkles,
-  v0: Sparkles,
+  bolt: SiStackblitz,
+  v0: SiV0,
   "blackbox-ai": Sparkles,
+  lovable: LovableIcon,
 };
 
 const TOOL_COLORS: Record<string, string> = {
@@ -67,7 +84,7 @@ const TOOL_COLORS: Record<string, string> = {
   cursor: "text-[#00A3FF]",
   aider: "text-green-400",
   devin: "text-purple-400",
-  "openai-codex": "text-teal-400",
+  "openai-codex": "text-[#181717] dark:text-white",
   gemini: "text-[#4285F4]",
   coderabbit: "text-[#FF6B2B]",
   "seer-by-sentry": "text-[#362D59]",
@@ -75,6 +92,12 @@ const TOOL_COLORS: Record<string, string> = {
   "qodo-merge": "text-[#7C3AED]",
   windsurf: "text-[#00C0FF]",
   "replit-agent": "text-[#F26207]",
+  v0: "text-[#181717] dark:text-white",
+  bolt: "text-[#1389FD]",
+  greptile: "text-[#30B77E]",
+  tabnine: "text-[#FF2210]",
+  "sourcegraph-cody": "text-[#00CBEC]",
+  lovable: "text-[#1E52F1]",
 };
 
 const TOOL_URLS: Record<string, string> = {
@@ -102,6 +125,7 @@ const TOOL_URLS: Record<string, string> = {
   bolt: "https://bolt.new",
   v0: "https://v0.dev",
   "blackbox-ai": "https://blackbox.ai",
+  lovable: "https://lovable.dev",
 };
 
 function formatNumber(n: number): string {
