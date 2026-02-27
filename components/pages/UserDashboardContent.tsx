@@ -596,6 +596,10 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   const isSyncInProgress = (githubRepos.length > 0 && isAnySyncing) || isFirstIngestion;
 
+  // True while Convex stats queries are still loading (undefined).
+  // Prevents flashing "No analysis data available." before data arrives.
+  const isDataLoading = repoFullNames.length > 0 && multiStats === undefined;
+
   // Notification logic
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
@@ -1022,14 +1026,27 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               </ErrorBoundary>
             )}
           </div>
-        ) : isSyncInProgress ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="h-32 animate-pulse rounded-2xl border border-neutral-800 bg-neutral-900/40"
-              />
-            ))}
+        ) : isSyncInProgress || isDataLoading ? (
+          <div className="space-y-12">
+            {/* Stats cards skeleton */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="h-32 animate-pulse rounded-2xl border border-neutral-800 bg-neutral-900/40"
+                />
+              ))}
+            </div>
+            {/* Heatmap skeleton */}
+            <div className="space-y-6">
+              <div className="flex flex-col gap-3 border-b border-neutral-800 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="h-6 w-40 animate-pulse rounded bg-neutral-800" />
+                  <div className="mt-2 h-3 w-64 animate-pulse rounded bg-neutral-800 opacity-50" />
+                </div>
+              </div>
+              <div className="h-[400px] w-full animate-pulse rounded-xl border border-neutral-800/50 bg-black/20" />
+            </div>
           </div>
         ) : (
           <div className="py-20 text-center text-neutral-500 font-medium">
