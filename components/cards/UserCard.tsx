@@ -100,7 +100,11 @@ export function UserCard({
   return (
     <Link
       href={`/${owner}`}
-      className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40 p-6 transition-all hover:border-neutral-700 hover:bg-neutral-900/60"
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-neutral-900/40 p-6 transition-all hover:bg-neutral-900/60 ${
+        hasPrivateData
+          ? "border-purple-500/30 hover:border-purple-400/45"
+          : "border-neutral-800 hover:border-neutral-700"
+      }`}
     >
       <div>
         <div className="flex items-center justify-between">
