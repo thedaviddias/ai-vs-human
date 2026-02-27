@@ -2,14 +2,20 @@
 
 import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
+import { useScrollDirection } from "@/lib/hooks/useScrollDirection";
 import { GithubStars } from "./GithubStars";
 import { UserMenu } from "./UserMenu";
 
 export function Header() {
+  const isVisible = useScrollDirection();
   const { data: session, isPending } = authClient.useSession();
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-neutral-800 bg-black">
+    <header
+      className={`sticky top-0 z-50 w-full border-b border-neutral-800 bg-black transition-transform duration-300 ${
+        isVisible ? "translate-y-0" : "-translate-y-full"
+      }`}
+    >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link
           href="/"
