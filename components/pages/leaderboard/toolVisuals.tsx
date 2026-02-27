@@ -4,9 +4,11 @@ import {
   SiCoderabbit,
   SiCursor,
   SiDependabot,
+  SiExpo,
   SiGithubactions,
   SiGithubcopilot,
   SiGooglegemini,
+  SiGooglejules,
   SiNetlify,
   SiQodo,
   SiRenovate,
@@ -16,6 +18,7 @@ import {
   SiSnyk,
   SiSonar,
   SiVercel,
+  SiWeblate,
   SiWindsurf,
 } from "@icons-pack/react-simple-icons";
 import { Bot, Brain, Sparkles, Terminal } from "lucide-react";
@@ -89,6 +92,12 @@ const BOT_ICONS: Record<string, React.ComponentType<{ className?: string; size?:
   v1: SiVercel,
   "bot-v1": SiVercel,
   netlify: SiNetlify,
+  "expo-bot": SiExpo,
+  "bot-expo-bot": SiExpo,
+  weblate: SiWeblate,
+  "bot-weblate": SiWeblate,
+  "google-jules": SiGooglejules,
+  "bot-google-jules": SiGooglejules,
 };
 
 const BOT_COLORS: Record<string, string> = {
@@ -104,6 +113,12 @@ const BOT_COLORS: Record<string, string> = {
   v1: "text-white",
   "bot-v1": "text-white",
   netlify: "text-[#00C7B7]",
+  "expo-bot": "text-[#000020] dark:text-white",
+  "bot-expo-bot": "text-[#000020] dark:text-white",
+  weblate: "text-[#2ECCAA]",
+  "bot-weblate": "text-[#2ECCAA]",
+  "google-jules": "text-[#4285F4]",
+  "bot-google-jules": "text-[#4285F4]",
 };
 
 export function AiToolLogo({ toolKey, label }: { toolKey: string; label: string }) {

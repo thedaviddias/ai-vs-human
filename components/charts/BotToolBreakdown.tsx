@@ -3,7 +3,9 @@
 import {
   SiCodecov,
   SiDependabot,
+  SiExpo,
   SiGithubactions,
+  SiGooglejules,
   SiNetlify,
   SiRenovate,
   SiSemanticrelease,
@@ -11,6 +13,7 @@ import {
   SiSnyk,
   SiSonar,
   SiVercel,
+  SiWeblate,
 } from "@icons-pack/react-simple-icons";
 import { Bot } from "lucide-react";
 import { useMemo } from "react";
@@ -33,6 +36,12 @@ const BotIcons: Record<string, React.ComponentType<{ className?: string; size?: 
   v1: SiVercel,
   "bot-v1": SiVercel,
   netlify: SiNetlify,
+  "expo-bot": SiExpo,
+  "bot-expo-bot": SiExpo,
+  weblate: SiWeblate,
+  "bot-weblate": SiWeblate,
+  "google-jules": SiGooglejules,
+  "bot-google-jules": SiGooglejules,
 };
 
 const BOT_COLORS: Record<string, string> = {
@@ -48,6 +57,12 @@ const BOT_COLORS: Record<string, string> = {
   v1: "text-white",
   "bot-v1": "text-white",
   netlify: "text-[#00C7B7]",
+  "expo-bot": "text-[#000020] dark:text-white",
+  "bot-expo-bot": "text-[#000020] dark:text-white",
+  weblate: "text-[#2ECCAA]",
+  "bot-weblate": "text-[#2ECCAA]",
+  "google-jules": "text-[#4285F4]",
+  "bot-google-jules": "text-[#4285F4]",
 };
 
 const BOT_URLS: Record<string, string> = {
@@ -70,6 +85,12 @@ const BOT_URLS: Record<string, string> = {
   netlify: "https://netlify.com",
   changesets: "https://github.com/changesets/changesets",
   kodiak: "https://kodiakhq.com",
+  "expo-bot": "https://expo.dev",
+  "bot-expo-bot": "https://expo.dev",
+  weblate: "https://weblate.org",
+  "bot-weblate": "https://weblate.org",
+  "google-jules": "https://jules.google.com",
+  "bot-google-jules": "https://jules.google.com",
 };
 
 function formatNumber(n: number): string {
