@@ -47,6 +47,7 @@ import { shouldAutoTriggerPrivateSync } from "@/lib/privateSyncTrigger";
 import { shouldShowPrivateData } from "@/lib/privateVisibility";
 import { getSyncBadgeLabel, getSyncStageLabel } from "@/lib/syncProgress";
 import { trackEvent } from "@/lib/tracking";
+import { extractUnknownBotIdentities } from "@/lib/unknownBots";
 import { createUserAutoAnalyzePlan } from "@/lib/userAutoAnalyzePlan";
 import { formatPercentage } from "@/lib/utils";
 
@@ -471,6 +472,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     );
     return mergeDetailedBreakdowns(multiRepoDetailedBreakdown, privateBreakdown);
   }, [multiRepoDetailedBreakdown, privateWeeklyStats]);
+
+  const unknownBotIdentities = useMemo(
+    () => extractUnknownBotIdentities(mergedBreakdown?.botBreakdown),
+    [mergedBreakdown]
+  );
 
   const repoPercentagesById = useMemo(() => {
     if (!multiStats)
@@ -1090,6 +1096,41 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             {mergedBreakdown && mergedBreakdown.botBreakdown.length > 0 && (
               <ErrorBoundary level="section">
                 <BotToolBreakdown botBreakdown={mergedBreakdown.botBreakdown} />
+              </ErrorBoundary>
+            )}
+
+            {unknownBotIdentities.length > 0 && (
+              <ErrorBoundary level="section">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-500">
+                      Unknown Bot Identities
+                    </h3>
+                    <div className="h-px flex-1 bg-neutral-800/50" />
+                  </div>
+                  <p className="text-xs text-neutral-500">
+                    These bot identities could not be matched to a known automation tool.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {unknownBotIdentities.map((bot) => (
+                      <div
+                        key={bot.key}
+                        className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4"
+                      >
+                        <div className="truncate text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                          {bot.label}
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          {bot.commits.toLocaleString()}
+                          <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">
+                            Commits
+                          </span>
+                        </div>
+                        <div className="mt-1 truncate text-[11px] text-neutral-600">{bot.key}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </ErrorBoundary>
             )}
           </div>

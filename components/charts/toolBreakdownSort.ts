@@ -17,6 +17,7 @@ const PINNED_AI_KEYS = [
   "cursor",
   "openai-codex",
   "gemini",
+  "pi",
   "aider",
   "devin",
   "amazon-q-developer",

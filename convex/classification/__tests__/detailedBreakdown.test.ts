@@ -48,6 +48,20 @@ describe("buildDetailedBreakdowns", () => {
     );
   });
 
+  it("maps pi signals to a dedicated Pi tool entry", () => {
+    const { toolBreakdown } = buildDetailedBreakdowns([
+      makeCommit({
+        classification: "ai-assisted",
+        message: "feat: update parser\n\nGenerated-By: pi 0.52.12",
+        additions: 11,
+      }),
+    ] as never);
+
+    expect(toolBreakdown).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "pi", label: "Pi", commits: 1 })])
+    );
+  });
+
   it("splits other-bot commits into concrete bots when detectable", () => {
     const { botBreakdown } = buildDetailedBreakdowns([
       makeCommit({ classification: "other-bot", authorLogin: "codecov[bot]" }),

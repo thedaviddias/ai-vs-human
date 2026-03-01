@@ -49,6 +49,18 @@ describe("mapPrAttributionSignal", () => {
       lane: "ai",
     });
   });
+
+  it("maps pi markers to Pi in the AI lane", () => {
+    const mapped = mapPrAttributionSignal({
+      classification: "ai-assisted",
+      body: "Generated-By: pi 0.52.12",
+    });
+    expect(mapped).toEqual({
+      key: "pi",
+      label: "Pi",
+      lane: "ai",
+    });
+  });
 });
 
 describe("aggregatePrAttribution", () => {

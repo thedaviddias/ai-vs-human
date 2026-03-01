@@ -75,6 +75,7 @@ const ToolIcons: Record<string, React.ComponentType<{ className?: string; size?:
   bolt: SiStackblitz,
   v0: SiV0,
   "blackbox-ai": Sparkles,
+  pi: Sparkles,
   lovable: LovableIcon,
 };
 
@@ -97,6 +98,7 @@ const TOOL_COLORS: Record<string, string> = {
   greptile: "text-[#30B77E]",
   tabnine: "text-[#FF2210]",
   "sourcegraph-cody": "text-[#00CBEC]",
+  pi: "text-[#FF6A00]",
   lovable: "text-[#1E52F1]",
 };
 
