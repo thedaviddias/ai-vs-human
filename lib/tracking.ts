@@ -35,6 +35,11 @@ type TrackingEvents = {
   private_unlink: Record<string, never>;
   private_resync: Record<string, never>;
   private_visibility_toggle: { show: boolean };
+  // Attribution guidance
+  attribution_guidance_shown: { context: "repo" | "user" };
+  attribution_guidance_dismissed: { action: "learn_more" | "dismiss" };
+  // Self-reporting
+  self_report_submit: { toolCount: number; hasPercentage: boolean };
 };
 
 export function trackEvent<T extends keyof TrackingEvents>(

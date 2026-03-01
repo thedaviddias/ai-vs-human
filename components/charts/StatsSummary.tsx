@@ -2,9 +2,16 @@
 
 import { Bot, CircleHelp, Cpu, Globe, Trophy, Users } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { AttributionGuidanceModal } from "@/components/ui/AttributionGuidanceModal";
 import { getRank } from "@/lib/ranks";
-import { shouldShowZeroAiGuidance } from "@/lib/zeroAiGuidance";
+import { trackEvent } from "@/lib/tracking";
+import {
+  getAttributionGuidanceType,
+  hasSeenAttributionGuidance,
+  markAttributionGuidanceSeen,
+  shouldShowAttributionGuidance,
+} from "@/lib/zeroAiGuidance";
 
 interface StatsSummaryProps {
   totalCommits: number;
@@ -24,6 +31,14 @@ interface StatsSummaryProps {
   zeroAiWhyHref?: string;
   /** When present and > 0, the "Total Activity" card shows public+private breakdown */
   privateCommitCount?: number;
+  /** Context for tracking — "repo" or "user" dashboard */
+  guidanceContext?: "repo" | "user";
+  /** When true, delays modal auto-open until sync completes */
+  isSyncing?: boolean;
+  /** Self-reported AI tools from the user (displayed as supplementary info) */
+  selfReportedTools?: string[];
+  /** Self-reported estimated AI percentage */
+  selfReportedPercentage?: number;
 }
 
 function formatNumber(n: number): string {
@@ -116,36 +131,78 @@ export function StatsSummary({
   showZeroAiWhyCta = false,
   zeroAiWhyHref = "/docs/attribution",
   privateCommitCount,
+  guidanceContext = "repo",
+  isSyncing = false,
+  selfReportedTools,
+  selfReportedPercentage,
 }: StatsSummaryProps) {
-  const showZeroAiGuidance = shouldShowZeroAiGuidance({
+  const [isGuidanceModalOpen, setIsGuidanceModalOpen] = useState(false);
+
+  const showGuidance = shouldShowAttributionGuidance({
     showZeroAiWhyCta,
     botPercentage,
     totalCommits,
   });
+  const guidanceType = getAttributionGuidanceType(botPercentage);
+
+  // Auto-open modal once for zero-AI users (wait for sync to finish)
+  useEffect(() => {
+    if (isSyncing) return;
+    if (guidanceType === "zero" && showGuidance && !hasSeenAttributionGuidance()) {
+      setIsGuidanceModalOpen(true);
+      markAttributionGuidanceSeen();
+      trackEvent("attribution_guidance_shown", { context: guidanceContext });
+    }
+  }, [guidanceType, showGuidance, guidanceContext, isSyncing]);
+
+  const handleGuidanceDismiss = useCallback(() => {
+    setIsGuidanceModalOpen(false);
+    trackEvent("attribution_guidance_dismissed", { action: "dismiss" });
+  }, []);
+
+  const handleGuidanceLearnMore = useCallback(() => {
+    setIsGuidanceModalOpen(false);
+    trackEvent("attribution_guidance_dismissed", { action: "learn_more" });
+  }, []);
 
   // Commits as primary, LOC as secondary subtext (following GitHub convention)
   const humanValue = `${humanPercentage}%`;
-  const humanSubtext = hasLocData && locHumanPercentage ? `${locHumanPercentage}% code` : undefined;
+  const humanSubtext: ReactNode =
+    showGuidance && guidanceType !== "none" ? (
+      <span className="text-[10px] font-bold uppercase tracking-widest text-green-500/80">
+        Manual Work
+      </span>
+    ) : hasLocData && locHumanPercentage ? (
+      `${locHumanPercentage}% code`
+    ) : undefined;
 
   const aiValue = `${botPercentage}%`;
-  const aiSubtext: ReactNode = showZeroAiGuidance ? (
-    <Link
-      href={zeroAiWhyHref}
-      className="text-[10px] font-bold uppercase tracking-widest text-purple-400/80 transition-colors hover:text-purple-300"
-      aria-label="Learn why AI can show as 0%"
-    >
-      Why 0% AI?
-    </Link>
-  ) : hasLocData && locBotPercentage ? (
-    `${locBotPercentage}% code`
-  ) : undefined;
+  const hasSelfReport = selfReportedTools && selfReportedTools.length > 0;
+  const aiSubtext: ReactNode =
+    hasSelfReport && (guidanceType === "zero" || guidanceType === "low") ? (
+      <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400/60">
+        Self-reported: ~{selfReportedPercentage ?? "?"}%
+      </span>
+    ) : showGuidance ? (
+      <Link
+        href={zeroAiWhyHref}
+        className="text-[10px] font-bold uppercase tracking-widest text-purple-400/80 transition-colors hover:text-purple-300"
+        aria-label={
+          guidanceType === "zero" ? "Learn why AI can show as 0%" : "Learn about AI attribution"
+        }
+      >
+        {guidanceType === "zero" ? "Why 0% AI?" : "Low AI attribution?"}
+      </Link>
+    ) : hasLocData && locBotPercentage ? (
+      `${locBotPercentage}% code`
+    ) : undefined;
 
   const automationValue = `${automationPercentage}%`;
   const automationSubtext =
     hasLocData && locAutomationPercentage ? `${locAutomationPercentage}% code` : undefined;
 
   const humanLabel = "Human Commits";
-  const aiLabel = "AI Commits";
+  const aiLabel = "Detected AI";
   const automationLabel = "Bot Commits";
 
   // Calculate Rank
@@ -170,17 +227,22 @@ export function StatsSummary({
       }. Includes human manual work, AI assistance, and maintenance bots.`;
 
   const humanTooltip =
-    hasLocData && locHumanPercentage
-      ? `Percent of added lines attributed to humans.${additionsContext}`
-      : "Percent of analyzed commits attributed to humans.";
+    showGuidance && guidanceType !== "none"
+      ? "High percentage of manual work. This reflects direct human craftsmanship and manual effort."
+      : hasLocData && locHumanPercentage
+        ? `Percent of added lines attributed to humans.${additionsContext}`
+        : "Percent of analyzed commits attributed to humans.";
 
   const aiBaseTooltip =
     hasLocData && locBotPercentage
-      ? `Percent of added lines attributed to AI assistants (Copilot, Cursor, etc.).${additionsContext}`
-      : "Percent of analyzed commits using AI tools.";
-  const aiTooltip = showZeroAiGuidance
-    ? `${aiBaseTooltip} Showing 0%? Attribution markers may be missing.`
-    : aiBaseTooltip;
+      ? `Percent of added lines attributed to AI assistants (Copilot, Cursor, etc.), based on commit attribution markers.${additionsContext}`
+      : "Percent of analyzed commits with detected AI attribution markers (Co-Authored-By, commit message tags).";
+  const aiTooltip =
+    guidanceType === "zero"
+      ? `${aiBaseTooltip} Showing 0%? Your AI tools might be missing attribution markers.`
+      : guidanceType === "low"
+        ? `${aiBaseTooltip} Low percentage? Most work was done manually, or attribution markers are missing.`
+        : aiBaseTooltip;
 
   const automationTooltip =
     hasLocData && locAutomationPercentage
@@ -192,66 +254,73 @@ export function StatsSummary({
     : "Developer rank is derived from the Human percentage shown in this summary.";
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
-      <StatCard
-        label="Total Activity"
-        value={formatNumber(displayedTotal)}
-        icon={<Cpu className="h-5 w-5" />}
-        subtext={
-          hasPrivateEnrichment ? (
-            <span className="text-purple-400/80">
-              incl. {formatNumber(privateCommitCount)} private
-            </span>
-          ) : repoCount ? (
-            `${repoCount} repos`
-          ) : undefined
-        }
-        tooltip={totalCommitsTooltip}
+    <>
+      <AttributionGuidanceModal
+        isOpen={isGuidanceModalOpen}
+        onClose={handleGuidanceDismiss}
+        onLearnMore={handleGuidanceLearnMore}
       />
-      <StatCard
-        label={humanLabel}
-        value={humanValue}
-        icon={<Users className="h-5 w-5" />}
-        subtext={humanSubtext}
-        variant="human"
-        tooltip={humanTooltip}
-      />
-      <StatCard
-        label={aiLabel}
-        value={aiValue}
-        icon={<Bot className="h-5 w-5" />}
-        subtext={aiSubtext}
-        variant="ai"
-        tooltip={aiTooltip}
-      />
-      <StatCard
-        label={automationLabel}
-        value={automationValue}
-        icon={<Bot className="h-5 w-5" />}
-        subtext={automationSubtext}
-        variant="bot"
-        tooltip={automationTooltip}
-      />
-      {isGlobal ? (
+      <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
-          label="Community Scale"
-          value="Global"
-          icon={<Globe className="h-5 w-5" />}
-          subtext="Total Index"
-          variant="global"
-          tooltip={rankTooltip}
+          label="Total Activity"
+          value={formatNumber(displayedTotal)}
+          icon={<Cpu className="h-5 w-5" />}
+          subtext={
+            hasPrivateEnrichment ? (
+              <span className="text-purple-400/80">
+                incl. {formatNumber(privateCommitCount)} private
+              </span>
+            ) : repoCount ? (
+              `${repoCount} repos`
+            ) : undefined
+          }
+          tooltip={totalCommitsTooltip}
         />
-      ) : (
         <StatCard
-          label={rank.title}
-          value={rank.icon}
-          icon={<Trophy className="h-5 w-5" />}
-          subtext="Developer Rank"
-          variant="rank"
-          textColor={rank.color}
-          tooltip={rankTooltip}
+          label={humanLabel}
+          value={humanValue}
+          icon={<Users className="h-5 w-5" />}
+          subtext={humanSubtext}
+          variant="human"
+          tooltip={humanTooltip}
         />
-      )}
-    </div>
+        <StatCard
+          label={aiLabel}
+          value={aiValue}
+          icon={<Bot className="h-5 w-5" />}
+          subtext={aiSubtext}
+          variant="ai"
+          tooltip={aiTooltip}
+        />
+        <StatCard
+          label={automationLabel}
+          value={automationValue}
+          icon={<Bot className="h-5 w-5" />}
+          subtext={automationSubtext}
+          variant="bot"
+          tooltip={automationTooltip}
+        />
+        {isGlobal ? (
+          <StatCard
+            label="Community Scale"
+            value="Global"
+            icon={<Globe className="h-5 w-5" />}
+            subtext="Total Index"
+            variant="global"
+            tooltip={rankTooltip}
+          />
+        ) : (
+          <StatCard
+            label={rank.title}
+            value={rank.icon}
+            icon={<Trophy className="h-5 w-5" />}
+            subtext="Developer Rank"
+            variant="rank"
+            textColor={rank.color}
+            tooltip={rankTooltip}
+          />
+        )}
+      </div>
+    </>
   );
 }

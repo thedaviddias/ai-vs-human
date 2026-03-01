@@ -29,6 +29,7 @@ import { OwnerPageSkeleton } from "@/components/skeletons/PageSkeletons";
 import { NotificationModal } from "@/components/ui/NotificationModal";
 import { PrivateDataBadge } from "@/components/ui/PrivateDataBadge";
 import { PrivateRepoCard } from "@/components/ui/PrivateRepoCard";
+import { SelfReportCard } from "@/components/ui/SelfReportCard";
 import { api } from "@/convex/_generated/api";
 import {
   aggregateMultiRepoStats,
@@ -190,6 +191,10 @@ export function UserDashboardContent({ owner }: { owner: string }) {
       void requestPrivateSync();
     }
   }, [isOwnProfile, session, privateSyncStatus, requestPrivateSync]);
+
+  // Self-report and AI tool detection queries
+  const selfReport = useQuery(api.queries.selfReport.getSelfReport, { githubLogin: owner });
+  const detectedAiTools = useQuery(api.queries.userAiTools.getUserDetectedAiTools, { owner });
 
   const [sortMode, setSortMode] = useQueryState(
     "sort",
@@ -989,8 +994,36 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                 hasLocData={userSummary.hasLocData}
                 showZeroAiWhyCta={true}
                 privateCommitCount={privateCommitCount}
+                guidanceContext="user"
+                isSyncing={isSyncInProgress}
+                selfReportedTools={selfReport?.tools}
+                selfReportedPercentage={selfReport?.estimatedPercentage ?? undefined}
               />
             </ErrorBoundary>
+
+            {/* AI Tools Detected + Self-Report */}
+            <div className="flex flex-col gap-3">
+              {detectedAiTools && detectedAiTools.tools.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+                  <span className="font-semibold uppercase tracking-widest">
+                    AI Tools in Repos:
+                  </span>
+                  {detectedAiTools.tools.map((tool: string) => (
+                    <span
+                      key={tool}
+                      className="rounded-md border border-neutral-800 bg-neutral-900/50 px-2 py-0.5 text-neutral-400"
+                    >
+                      {tool}
+                    </span>
+                  ))}
+                  <span className="text-neutral-600">
+                    (across {detectedAiTools.repoCount}{" "}
+                    {detectedAiTools.repoCount === 1 ? "repo" : "repos"})
+                  </span>
+                </div>
+              )}
+              <SelfReportCard githubLogin={owner} isOwnProfile={isOwnProfile} />
+            </div>
 
             {/* Heatmap */}
             <div className="space-y-6">

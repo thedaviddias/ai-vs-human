@@ -1,4 +1,3 @@
-import { ConvexError } from "convex/values";
 import { describe, expect, it, vi } from "vitest";
 import { requirePrivateDataAccess } from "../userHelpers";
 
@@ -14,7 +13,7 @@ vi.mock("../../lib/authHelpers", () => ({
   resolveGitHubLogin: vi.fn(),
 }));
 
-function makeMockCtx(profile: any = null) {
+function makeMockCtx(profile: Record<string, unknown> | null = null) {
   return {
     db: {
       query: vi.fn().mockReturnValue({
@@ -22,7 +21,7 @@ function makeMockCtx(profile: any = null) {
         unique: vi.fn().mockResolvedValue(profile),
       }),
     },
-  } as any;
+  } as unknown as Parameters<typeof requirePrivateDataAccess>[0];
 }
 
 // ─── requirePrivateDataAccess ────────────────────────────────────────
@@ -59,7 +58,9 @@ describe("requirePrivateDataAccess", () => {
     const { authComponent } = await import("../../auth");
     const { resolveGitHubLogin } = await import("../../lib/authHelpers");
 
-    vi.mocked(authComponent.getAuthUser).mockResolvedValueOnce({ _id: "user123" } as any);
+    vi.mocked(authComponent.getAuthUser).mockResolvedValueOnce({
+      _id: "user123",
+    } as unknown as Awaited<ReturnType<typeof authComponent.getAuthUser>>);
     vi.mocked(resolveGitHubLogin).mockResolvedValueOnce("anotheruser");
 
     await expect(requirePrivateDataAccess(ctx, "thedaviddias")).rejects.toThrowError(
@@ -73,7 +74,9 @@ describe("requirePrivateDataAccess", () => {
     const { authComponent } = await import("../../auth");
     const { resolveGitHubLogin } = await import("../../lib/authHelpers");
 
-    vi.mocked(authComponent.getAuthUser).mockResolvedValueOnce({ _id: "user123" } as any);
+    vi.mocked(authComponent.getAuthUser).mockResolvedValueOnce({
+      _id: "user123",
+    } as unknown as Awaited<ReturnType<typeof authComponent.getAuthUser>>);
     vi.mocked(resolveGitHubLogin).mockResolvedValueOnce("TheDavidDias");
 
     await expect(requirePrivateDataAccess(ctx, "thedaviddias")).resolves.toBe(true);

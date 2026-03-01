@@ -5,6 +5,7 @@ import type { FunctionReturnType } from "convex/server";
 import { ExternalLink, Loader2, RefreshCw, Star } from "lucide-react";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useState } from "react";
+import { AiConfigMismatchBanner } from "@/components/banners/AiConfigMismatchBanner";
 import { AiConfigStack } from "@/components/cards/AiConfigStack";
 import { AIToolBreakdown } from "@/components/charts/AIToolBreakdown";
 import { BotToolBreakdown } from "@/components/charts/BotToolBreakdown";
@@ -236,6 +237,8 @@ export function RepoDashboardContent({
               totalAdditions={summary.locTotals?.totalAdditions}
               hasLocData={summary.hasLocData}
               showZeroAiWhyCta={true}
+              guidanceContext="repo"
+              isSyncing={isSyncInProgress}
             />
           </ErrorBoundary>
         ) : isSyncInProgress ? (
@@ -248,6 +251,11 @@ export function RepoDashboardContent({
             ))}
           </div>
         ) : null}
+
+        {/* AI Config Mismatch Banner — shown when AI configs are detected but 0% AI */}
+        {summary?.aiPercentage === "0" && repo?.aiConfigs && repo.aiConfigs.length > 0 && (
+          <AiConfigMismatchBanner configs={repo.aiConfigs} />
+        )}
 
         {/* AI Configs/Skills */}
         {repo?.aiConfigs && repo.aiConfigs.length > 0 && (

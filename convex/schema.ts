@@ -226,6 +226,13 @@ export default defineSchema({
     repoCount: v.number(),
   }).index("by_date", ["date"]),
 
+  userAiSelfReports: defineTable({
+    githubLogin: v.string(),
+    tools: v.array(v.string()),
+    estimatedPercentage: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_login", ["githubLogin"]),
+
   rateLimits: defineTable({
     ipHash: v.string(),
     date: v.string(),
