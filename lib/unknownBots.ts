@@ -11,7 +11,7 @@ const RESOLVED_LEGACY_BOT_KEYS = new Set([
   "bot-google-jules",
 ]);
 
-function isUnknownBotKey(key: string): boolean {
+export function isUnknownBotKey(key: string): boolean {
   if (key === "other-bot" || key === "bot-unspecified") {
     return true;
   }

@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { extractUnknownBotIdentities } from "../unknownBots";
+import { extractUnknownBotIdentities, isUnknownBotKey } from "../unknownBots";
 
 describe("extractUnknownBotIdentities", () => {
+  it("identifies unknown bot keys correctly", () => {
+    expect(isUnknownBotKey("other-bot")).toBe(true);
+    expect(isUnknownBotKey("bot-unspecified")).toBe(true);
+    expect(isUnknownBotKey("bot-internal-helper")).toBe(true);
+    expect(isUnknownBotKey("dependabot")).toBe(false);
+    expect(isUnknownBotKey("bot-v1")).toBe(false);
+  });
+
   it("returns empty array when input is missing", () => {
     expect(extractUnknownBotIdentities(undefined)).toEqual([]);
     expect(extractUnknownBotIdentities(null)).toEqual([]);

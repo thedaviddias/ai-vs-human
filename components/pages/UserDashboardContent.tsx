@@ -30,6 +30,7 @@ import { NotificationModal } from "@/components/ui/NotificationModal";
 import { PrivateDataBadge } from "@/components/ui/PrivateDataBadge";
 import { PrivateRepoCard } from "@/components/ui/PrivateRepoCard";
 import { SelfReportCard } from "@/components/ui/SelfReportCard";
+import { UnknownBotIdentitiesModal } from "@/components/ui/UnknownBotIdentitiesModal";
 import { api } from "@/convex/_generated/api";
 import {
   aggregateMultiRepoStats,
@@ -624,6 +625,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   // Notification logic
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [isUnknownBotModalOpen, setIsUnknownBotModalOpen] = useState(false);
   const [wantsNotification, setWantsNotification] = useState(false);
   const prevSyncingRef = useRef(isSyncInProgress);
   const { playSuccess } = useSound();
@@ -976,6 +978,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
         onClose={() => setIsNotificationModalOpen(false)}
         onConfirm={() => setWantsNotification(true)}
       />
+      <UnknownBotIdentitiesModal
+        isOpen={isUnknownBotModalOpen}
+        onClose={() => setIsUnknownBotModalOpen(false)}
+        bots={unknownBotIdentities}
+      />
 
       {/* Main Insights Card */}
       <div
@@ -1113,9 +1120,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {unknownBotIdentities.map((bot) => (
-                      <div
+                      <button
+                        type="button"
                         key={bot.key}
-                        className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4"
+                        onClick={() => setIsUnknownBotModalOpen(true)}
+                        className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900/60"
                       >
                         <div className="truncate text-[10px] font-bold uppercase tracking-widest text-neutral-500">
                           {bot.label}
@@ -1127,7 +1136,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                           </span>
                         </div>
                         <div className="mt-1 truncate text-[11px] text-neutral-600">{bot.key}</div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>

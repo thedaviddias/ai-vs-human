@@ -17,6 +17,7 @@ import {
 } from "@icons-pack/react-simple-icons";
 import { Bot } from "lucide-react";
 import { useMemo } from "react";
+import { isUnknownBotKey } from "@/lib/unknownBots";
 import { type BotToolBreakdownItem, sortBotBreakdown } from "./toolBreakdownSort";
 
 interface BotToolBreakdownProps {
@@ -102,7 +103,7 @@ function formatNumber(n: number): string {
 export function BotToolBreakdown({ botBreakdown }: BotToolBreakdownProps) {
   const bots = useMemo(() => {
     if (!botBreakdown) return [];
-    const filtered = botBreakdown.filter((bot) => bot.commits > 0);
+    const filtered = botBreakdown.filter((bot) => bot.commits > 0 && !isUnknownBotKey(bot.key));
     return sortBotBreakdown(filtered);
   }, [botBreakdown]);
 
