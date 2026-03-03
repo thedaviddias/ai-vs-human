@@ -198,7 +198,14 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
   const hasPrivateData = privateSyncStatus?.includesPrivateData === true;
   const profileHasPrivateData = cachedProfile?.hasPrivateData === true || hasPrivateData;
-  const shouldShowPrivateSignInCta = !session?.user && !isSessionPending && !profileHasPrivateData;
+  const hasPrivateSyncRecord = privateSyncStatus != null;
+  const hasResolvedPrivateSignals = cachedProfile !== undefined && privateSyncStatus !== undefined;
+  const shouldShowPrivateSignInCta =
+    !session?.user &&
+    !isSessionPending &&
+    hasResolvedPrivateSignals &&
+    !profileHasPrivateData &&
+    !hasPrivateSyncRecord;
 
   // Determine if private data should be visible to the current viewer
   const showPrivateToViewer = useMemo(
