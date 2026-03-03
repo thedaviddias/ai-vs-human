@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus MCP
 
-This project is indexed by GitNexus as **ai-vs-human** (893 symbols, 2014 relationships, 58 execution flows).
+This project is indexed by GitNexus as **ai-vs-human** (1056 symbols, 2381 relationships, 74 execution flows).
 
 GitNexus provides a knowledge graph over this codebase — call chains, blast radius, execution flows, and semantic search.
 

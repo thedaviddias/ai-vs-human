@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["localhost", "127.0.0.1"],
   transpilePackages: ["@aivshuman/source-contract"],
   pageExtensions: ["ts", "tsx", "md", "mdx"],
+  // Strip all console.* calls from app code in production builds.
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production",
+  },
   experimental: {
     mdxRs: {
       mdxType: "gfm",
