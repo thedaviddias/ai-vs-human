@@ -197,6 +197,8 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   });
 
   const hasPrivateData = privateSyncStatus?.includesPrivateData === true;
+  const profileHasPrivateData = cachedProfile?.hasPrivateData === true || hasPrivateData;
+  const shouldShowPrivateSignInCta = !session?.user && !isSessionPending && !profileHasPrivateData;
 
   // Determine if private data should be visible to the current viewer
   const showPrivateToViewer = useMemo(
@@ -1159,8 +1161,8 @@ export function UserDashboardContent({ owner }: { owner: string }) {
         </div>
       )}
 
-      {/* Sign-in CTA — shown to non-authenticated visitors on any profile */}
-      {!session?.user && !isSessionPending && (
+      {/* Sign-in CTA — hidden when this profile already includes private-repo data */}
+      {shouldShowPrivateSignInCta && (
         <div className="mx-auto mt-8 max-w-xl">
           <Link
             href="/login"
