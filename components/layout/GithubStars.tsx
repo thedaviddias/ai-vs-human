@@ -32,7 +32,7 @@ export function GithubStars() {
       href={REPO_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/50 px-3 py-1.5 text-xs font-bold text-neutral-400 transition-all hover:border-neutral-700 hover:bg-neutral-800 hover:text-white active:scale-95"
+      className="group flex w-fit items-center gap-2 rounded-lg border border-neutral-800 bg-neutral-900/50 px-3 py-1.5 text-xs font-bold text-neutral-400 transition-all hover:border-neutral-700 hover:bg-neutral-800 hover:text-white active:scale-95"
       aria-label="Star on GitHub"
     >
       <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">

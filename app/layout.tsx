@@ -35,7 +35,7 @@ export default function RootLayout({
         <PlausibleProvider domain="aivshuman.dev" enabled={process.env.NODE_ENV === "production"} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-neutral-950 text-neutral-50 antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} min-h-screen overflow-x-hidden bg-neutral-950 text-neutral-50 antialiased`}
       >
         <NuqsAdapter>
           <ConvexClientProvider>

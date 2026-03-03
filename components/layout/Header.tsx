@@ -91,7 +91,7 @@ export function Header() {
                 <Link
                   href="/login"
                   title="Sign in with GitHub"
-                  className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-2.5 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
+                  className="flex h-9 items-center gap-1.5 rounded-lg border border-neutral-700 px-3 text-xs font-medium text-neutral-300 transition-colors hover:border-neutral-500 hover:text-white"
                 >
                   <svg
                     width="12"
@@ -126,7 +126,7 @@ export function Header() {
             aria-label="Mobile navigation"
             className="border-t border-neutral-800 pb-4 sm:hidden"
           >
-            <div className="flex flex-col gap-3 pt-3">
+            <div className="flex flex-col items-start gap-3 pt-3">
               <Link
                 href="/leaderboard"
                 onClick={() => setMobileMenuOpen(false)}
