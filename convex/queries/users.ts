@@ -32,6 +32,8 @@ async function getIndexedUsersHelper(ctx: QueryCtx) {
 
     if (existing) {
       existing.isSyncing = existing.isSyncing || isRepoSyncing;
+      // Keep the newest request timestamp across all repos for accurate "Latest" ordering.
+      existing.lastIndexedAt = Math.max(existing.lastIndexedAt, repo.requestedAt);
     } else {
       owners.set(repo.owner, {
         owner: repo.owner,

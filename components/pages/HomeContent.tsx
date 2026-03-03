@@ -104,8 +104,15 @@ export function HomeContent({
   const visibleUsers = useMemo(() => {
     if (!indexedUsers) return [];
 
+    const byLatest = (a: IndexedUserData, b: IndexedUserData) =>
+      b.lastIndexedAt - a.lastIndexedAt ||
+      b.totalCommits - a.totalCommits ||
+      b.repoCount - a.repoCount ||
+      a.owner.localeCompare(b.owner);
+
     if (sortMode === "latest") {
-      return indexedUsers;
+      // Always sort client-side so "Latest" is deterministic even if source ordering changes.
+      return [...indexedUsers].sort(byLatest);
     }
 
     return [...indexedUsers].sort((a, b) => {
@@ -114,7 +121,7 @@ export function HomeContent({
       if (bFollowers !== aFollowers) {
         return bFollowers - aFollowers;
       }
-      return b.lastIndexedAt - a.lastIndexedAt;
+      return byLatest(a, b);
     });
   }, [sortMode, indexedUsers]);
 
