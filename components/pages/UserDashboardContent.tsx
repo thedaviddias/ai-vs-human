@@ -334,7 +334,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   }, [owner]);
 
   const [chartMode, setChartMode] = useQueryState(
-    "view",
+    "chart",
     parseAsStringLiteral(chartModes).withDefault("commits").withOptions({ scroll: false })
   );
 
@@ -538,6 +538,31 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     api.queries.stats.getMultiRepoDetailedBreakdown,
     repoFullNames.length > 0 ? { repoFullNames } : "skip"
   );
+
+  const canReadSourceOverlay = isOwnProfile || cachedProfile?.showSourceStatsPublicly === true;
+
+  const cursorAcceptedLines = useQuery(
+    api.queries.sourceStats.getUserSourceDailyMetric,
+    canReadSourceOverlay
+      ? {
+          githubLogin: owner,
+          sourceId: "cursor",
+          metricKey: "acceptedLines",
+        }
+      : "skip"
+  );
+
+  const sourceOverlayByDate = useMemo(() => {
+    if (!cursorAcceptedLines || cursorAcceptedLines.length === 0) {
+      return undefined;
+    }
+
+    const overlay: Record<number, number> = {};
+    for (const row of cursorAcceptedLines) {
+      overlay[row.date] = row.value;
+    }
+    return overlay;
+  }, [cursorAcceptedLines]);
 
   // Merge public + private daily stats for the heatmap.
   // Private stats are keyed by date (epoch ms) — we add counts to matching days
@@ -1311,25 +1336,27 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   </p>
                 </div>
                 {userSummary?.hasLocData && (
-                  <div className="inline-flex self-start rounded-lg border border-neutral-800 bg-black p-1">
-                    <button
-                      type="button"
-                      onClick={() => setChartMode("commits")}
-                      className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
-                        chartMode === "commits" ? "bg-white text-black" : "text-neutral-500"
-                      }`}
-                    >
-                      Commits
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setChartMode("loc")}
-                      className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
-                        chartMode === "loc" ? "bg-white text-black" : "text-neutral-500"
-                      }`}
-                    >
-                      Code Volume
-                    </button>
+                  <div className="flex flex-col gap-2 self-start">
+                    <div className="inline-flex rounded-lg border border-neutral-800 bg-black p-1">
+                      <button
+                        type="button"
+                        onClick={() => setChartMode("commits")}
+                        className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
+                          chartMode === "commits" ? "bg-white text-black" : "text-neutral-500"
+                        }`}
+                      >
+                        Commits
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChartMode("loc")}
+                        className={`rounded-md px-3 py-1.5 text-xs font-bold transition-all ${
+                          chartMode === "loc" ? "bg-white text-black" : "text-neutral-500"
+                        }`}
+                      >
+                        Code Volume
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1340,6 +1367,12 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                     viewMode={userSummary?.hasLocData ? chartMode : "commits"}
                     isSyncing={isSyncInProgress}
                     includesPrivateData={privateDailyStats != null && privateDailyStats.length > 0}
+                    sourceOverlayByDate={
+                      userSummary?.hasLocData && chartMode === "loc"
+                        ? sourceOverlayByDate
+                        : undefined
+                    }
+                    sourceOverlayLabel="Cursor accepted lines"
                   />
                 </div>
               </ErrorBoundary>

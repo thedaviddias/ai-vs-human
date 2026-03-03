@@ -47,6 +47,9 @@ export default defineSchema({
         })
       )
     ),
+    // Version marker for persisted detailed breakdowns.
+    // Increment to force one-time backfill for older repos.
+    detailedBreakdownVersion: v.optional(v.number()),
     prAttribution: v.optional(
       v.object({
         totalCommits: v.number(),
@@ -266,6 +269,8 @@ export default defineSchema({
     hasPrivateData: v.optional(v.boolean()),
     /** Whether private activity is visible to public visitors. undefined = true (default on). */
     showPrivateDataPublicly: v.optional(v.boolean()),
+    /** Whether source-level stats (e.g. Cursor daily metrics) are visible to public visitors. */
+    showSourceStatsPublicly: v.optional(v.boolean()),
   })
     .index("by_owner", ["owner"])
     .index("by_avatarUrl", ["avatarUrl"]),
@@ -357,4 +362,41 @@ export default defineSchema({
     processedRepos: v.optional(v.number()),
     totalCommitsFound: v.optional(v.number()),
   }).index("by_login", ["githubLogin"]),
+
+  desktopDeviceLinks: defineTable({
+    codeHash: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("consumed"),
+      v.literal("expired")
+    ),
+    githubLogin: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    approvedAt: v.optional(v.number()),
+    consumedAt: v.optional(v.number()),
+  })
+    .index("by_code_hash", ["codeHash"])
+    .index("by_expires_at", ["expiresAt"]),
+
+  userSourceDailyStats: defineTable({
+    githubLogin: v.string(),
+    sourceId: v.string(),
+    schemaVersion: v.number(),
+    date: v.number(), // epoch ms, midnight UTC
+    metrics: v.record(v.string(), v.number()),
+    uploadedAt: v.number(),
+  })
+    .index("by_login_source_date", ["githubLogin", "sourceId", "date"])
+    .index("by_login_source", ["githubLogin", "sourceId"]),
+
+  userSourceSyncStatus: defineTable({
+    githubLogin: v.string(),
+    sourceId: v.string(),
+    lastSyncedAt: v.number(),
+    rowCount: v.number(),
+    clientVersion: v.string(),
+    schemaVersion: v.number(),
+  }).index("by_login_source", ["githubLogin", "sourceId"]),
 });

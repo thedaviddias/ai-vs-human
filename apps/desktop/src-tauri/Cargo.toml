@@ -1,0 +1,27 @@
+[package]
+name = "aivshuman-desktop"
+version = "0.1.0"
+description = "AI vs Human desktop sync app"
+authors = ["AI vs Human"]
+license = "MIT"
+edition = "2021"
+rust-version = "1.78"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+base64 = "0.22"
+dirs = "6.0"
+iana-time-zone = "0.1"
+keyring = "3.6"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.0", features = [] }
+thiserror = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

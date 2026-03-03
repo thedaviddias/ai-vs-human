@@ -305,7 +305,7 @@ export function ShareButtons({
                 disabled={downloadLoading}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-neutral-200 transition-colors hover:bg-neutral-900 disabled:opacity-50 whitespace-nowrap"
               >
-                <EyeOff className="h-4 w-4 text-purple-400" />
+                <EyeOff className="h-4 w-4 text-blue-400" />
                 Download with Private
               </button>
             )}

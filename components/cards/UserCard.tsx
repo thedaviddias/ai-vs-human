@@ -102,7 +102,7 @@ export function UserCard({
       href={`/${owner}`}
       className={`group relative flex flex-col justify-between overflow-hidden rounded-xl border bg-neutral-900/40 p-6 transition-all hover:bg-neutral-900/60 ${
         hasPrivateData
-          ? "border-purple-500/30 hover:border-purple-400/45"
+          ? "border-blue-500/30 hover:border-blue-400/45"
           : "border-neutral-800 hover:border-neutral-700"
       }`}
     >
@@ -143,7 +143,7 @@ export function UserCard({
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0 ml-3">
             {hasPrivateData && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-400 whitespace-nowrap border border-purple-500/20">
+              <span className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-300 whitespace-nowrap border border-blue-500/20">
                 Incl. Private
               </span>
             )}

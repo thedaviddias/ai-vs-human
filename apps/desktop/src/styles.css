@@ -1,0 +1,100 @@
+:root {
+  font-family: "SF Pro Text", "Segoe UI", sans-serif;
+  color: #f5f5f5;
+  background: radial-gradient(circle at 20% 0%, #1a2138 0%, #0f1117 50%, #0a0b0f 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 24px;
+}
+
+.card {
+  background: rgba(18, 20, 26, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #b0b7c5;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+
+button {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+button.primary {
+  background: linear-gradient(90deg, #6d5efc, #4b9dff);
+  color: #fff;
+}
+
+button.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.small {
+  margin-top: 8px;
+  color: #a0a8b7;
+  font-size: 13px;
+}
+
+.success {
+  color: #56d68a;
+}
+
+.error {
+  color: #ff8d8d;
+}
+
+.mono {
+  font-family: "SF Mono", Menlo, monospace;
+}

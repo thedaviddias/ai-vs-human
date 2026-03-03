@@ -1,10 +1,11 @@
 "use client";
 
 import { useMutation } from "convex/react";
-import { EyeOff, Link2, Loader2, Lock, RefreshCw, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ChevronDown, EyeOff, Link2, Loader2, Lock, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { api } from "@/convex/_generated/api";
+import { resolvePrivateRepoCardMode } from "@/lib/privateRepoCardMode";
 import { trackEvent } from "@/lib/tracking";
 
 /** Fun messages shown while the private sync is running. */
@@ -87,10 +88,11 @@ function useSyncMessage(isActive: boolean) {
  * Allows linking/unlinking private repo aggregate data,
  * toggling public visibility, and re-syncing.
  *
- * Now with three states:
- * 1. **Not linked** — CTA to link private repos
- * 2. **Syncing** — animated progress with changing messages + repo/commit counters
- * 3. **Linked** — summary of private data + visibility toggle + re-sync/unlink
+ * Four modes:
+ * 1. not_linked — CTA to start private sync
+ * 2. syncing — animated progress with counters
+ * 3. linked_compact — compact linked row + Manage entrypoint
+ * 4. linked_expanded — linked row auto-opens Manage on sync errors
  */
 export function PrivateRepoCard({
   hasPrivateData,
@@ -114,10 +116,24 @@ export function PrivateRepoCard({
   const [isFullRebuilding, setIsFullRebuilding] = useState(false);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
   const [showFullRebuildConfirm, setShowFullRebuildConfirm] = useState(false);
+  const [isManagePanelOpen, setIsManagePanelOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isSyncing = syncStatus === "syncing";
+  const mode = resolvePrivateRepoCardMode({ hasPrivateData, syncStatus, syncError });
+  const isSyncing = mode === "syncing";
   const funMessage = useSyncMessage(isSyncing);
+  const managePanelId = useId();
+
+  useEffect(() => {
+    if (mode === "linked_expanded") {
+      setIsManagePanelOpen(true);
+      return;
+    }
+
+    if (mode !== "linked_compact") {
+      setIsManagePanelOpen(false);
+    }
+  }, [mode]);
 
   const handleLink = async () => {
     trackEvent("private_link", {});
@@ -185,145 +201,169 @@ export function PrivateRepoCard({
     onToggleVisibility?.(show);
   };
 
-  // ─── State 2: Syncing — animated progress display ─────────────────
-  if (isSyncing) {
+  // ─── State: Syncing — animated progress display ───────────────────
+  if (mode === "syncing") {
     const progressPercent =
       totalRepos && processedRepos ? Math.round((processedRepos / totalRepos) * 100) : 0;
 
     return (
-      <div className="rounded-xl border border-purple-800/50 bg-purple-950/20 p-5">
+      <div className="rounded-xl border border-blue-800/50 bg-blue-950/20 p-5">
         <div className="flex items-center gap-3">
           <div className="relative flex h-8 w-8 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
           </div>
           <div className="flex-1">
             <span className="text-sm font-semibold text-white">Syncing Private Activity</span>
             {totalRepos != null && processedRepos != null ? (
-              <p className="mt-0.5 text-xs text-purple-300/80">
+              <p className="mt-0.5 text-xs text-blue-300/80">
                 Repo {processedRepos}/{totalRepos}
                 {totalCommitsFound != null && totalCommitsFound > 0 && (
-                  <span className="text-purple-400/60">
+                  <span className="text-blue-400/60">
                     {" "}
                     &middot; {totalCommitsFound.toLocaleString()} commits classified
                   </span>
                 )}
               </p>
             ) : (
-              <p className="mt-0.5 text-xs text-purple-300/60">Discovering private repos...</p>
+              <p className="mt-0.5 text-xs text-blue-300/60">Discovering private repos...</p>
             )}
           </div>
         </div>
 
-        {/* Progress bar */}
         {totalRepos != null && totalRepos > 0 && (
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-purple-900/40">
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-blue-900/40">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-purple-400 transition-all duration-700 ease-out"
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-700 ease-out"
               style={{ width: `${Math.max(progressPercent, 3)}%` }}
             />
           </div>
         )}
 
-        {/* Cycling fun message */}
         <p className="mt-3 text-xs italic text-neutral-500 transition-opacity duration-500">
           {funMessage}
         </p>
-
+        {syncError && <p className="mt-2 text-xs text-red-400">{syncError}</p>}
         {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       </div>
     );
   }
 
-  // ─── State 3: Linked — summary + controls ─────────────────────────
-  if (hasPrivateData) {
+  // ─── States: Linked (compact + expanded) ──────────────────────────
+  if (mode === "linked_compact" || mode === "linked_expanded") {
+    const showManagePanel = isManagePanelOpen;
+    const showLinkedError = mode === "linked_expanded";
+
     return (
-      <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+      <div
+        className={`rounded-xl p-4 ${
+          showLinkedError
+            ? "border border-amber-800/50 bg-amber-950/10"
+            : "border border-neutral-800 bg-neutral-900/40"
+        }`}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <EyeOff className="h-4 w-4 text-purple-400" />
+              <EyeOff className="h-4 w-4 text-blue-400" />
               <span className="text-sm font-semibold text-white">Private Activity Linked</span>
             </div>
-            <p className="mt-1 text-xs text-neutral-500">
-              Your heatmap includes private repo commit stats. Only aggregate numbers are stored.
-            </p>
-            {/* Quick summary of private data */}
-            {privateCommitCount != null && privateCommitCount > 0 && (
-              <div className="mt-2 flex items-center gap-3">
-                <div className="flex items-center gap-1.5 rounded-md bg-purple-900/30 px-2 py-1">
-                  <Lock className="h-3 w-3 text-purple-400" />
-                  <span className="text-xs font-medium text-purple-300">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {privateCommitCount != null && privateCommitCount > 0 && (
+                <div className="flex items-center gap-1.5 rounded-md bg-blue-900/30 px-2 py-1">
+                  <Lock className="h-3 w-3 text-blue-400" />
+                  <span className="text-xs font-medium text-blue-300">
                     {privateCommitCount.toLocaleString()} private commits
                   </span>
                 </div>
-              </div>
-            )}
+              )}
+              {lastSyncedAt && (
+                <span className="text-xs text-neutral-500">
+                  Synced {formatRelativeTime(lastSyncedAt)}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={handleResync}
-              disabled={isResyncing || isFullRebuilding}
-              className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-purple-700 hover:text-purple-400"
-            >
-              {isResyncing ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3" />
-              )}
-              Sync latest
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowFullRebuildConfirm(true)}
-              disabled={isResyncing || isFullRebuilding}
-              className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-amber-700 hover:text-amber-400"
-            >
-              {isFullRebuilding ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3" />
-              )}
-              Full rebuild
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowUnlinkConfirm(true)}
-              disabled={isUnlinking || isResyncing || isFullRebuilding}
-              className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-red-700 hover:text-red-400"
-            >
-              {isUnlinking ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Trash2 className="h-3 w-3" />
-              )}
-              Unlink
-            </button>
-          </div>
-        </div>
 
-        {/* Visibility toggle + last synced */}
-        <div className="mt-3 flex items-center justify-between border-t border-neutral-800 pt-3">
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={showPrivateDataPublicly !== false}
-              onChange={(e) => handleVisibilityToggle(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-800 text-purple-500 focus:ring-purple-500/20"
+          <button
+            type="button"
+            onClick={() => setIsManagePanelOpen((prev) => !prev)}
+            aria-expanded={showManagePanel}
+            aria-controls={managePanelId}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-300 transition-colors hover:border-blue-700 hover:text-blue-300"
+          >
+            Manage
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${showManagePanel ? "rotate-180" : ""}`}
             />
-            <span className="text-xs text-neutral-400">Show private activity to visitors</span>
-          </label>
-          {lastSyncedAt && (
-            <span className="text-xs text-neutral-600">
-              Synced {formatRelativeTime(lastSyncedAt)}
-            </span>
-          )}
+          </button>
         </div>
 
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
-        <p className="mt-2 text-[11px] text-neutral-500">
-          Sync latest uses an incremental window. Full rebuild reprocesses the full 2-year history.
-        </p>
+        {showManagePanel && (
+          <div id={managePanelId} className="mt-3 border-t border-neutral-800 pt-3">
+            <p className="text-xs text-neutral-500">
+              Your heatmap includes private repo commit stats. Only aggregate numbers are stored.
+            </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleResync}
+                disabled={isResyncing || isFullRebuilding}
+                className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-blue-700 hover:text-blue-400"
+              >
+                {isResyncing ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+                Sync latest
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFullRebuildConfirm(true)}
+                disabled={isResyncing || isFullRebuilding}
+                className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-amber-700 hover:text-amber-400"
+              >
+                {isFullRebuilding ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3" />
+                )}
+                Full rebuild
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowUnlinkConfirm(true)}
+                disabled={isUnlinking || isResyncing || isFullRebuilding}
+                className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-red-700 hover:text-red-400"
+              >
+                {isUnlinking ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+                Unlink
+              </button>
+            </div>
+
+            <label className="mt-3 flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={showPrivateDataPublicly !== false}
+                onChange={(e) => handleVisibilityToggle(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-neutral-600 bg-neutral-800 text-blue-500 focus:ring-blue-500/20"
+              />
+              <span className="text-xs text-neutral-400">Show private activity to visitors</span>
+            </label>
+
+            {syncError && <p className="mt-2 text-xs text-red-400">{syncError}</p>}
+            {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+            <p className="mt-2 text-[11px] text-neutral-500">
+              Sync latest uses an incremental window. Full rebuild reprocesses the full 2-year
+              history.
+            </p>
+          </div>
+        )}
 
         <ConfirmModal
           isOpen={showUnlinkConfirm}
@@ -350,7 +390,7 @@ export function PrivateRepoCard({
     );
   }
 
-  // ─── State 1: Not linked — CTA to start ───────────────────────────
+  // ─── State: Not linked — CTA to start ─────────────────────────────
   return (
     <div className="rounded-xl border border-dashed border-neutral-700 bg-neutral-900/20 p-5">
       <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 export interface DailyDataPoint {
   date: number; // epoch ms, midnight UTC
@@ -19,6 +19,10 @@ interface ContributionHeatmapProps {
   isSyncing?: boolean;
   /** When true, merged data includes private repos (which lack LOC data) */
   includesPrivateData?: boolean;
+  /** Optional overlay series keyed by UTC midnight epoch ms */
+  sourceOverlayByDate?: Record<number, number>;
+  /** Legend + tooltip label for overlay series */
+  sourceOverlayLabel?: string;
 }
 
 // Layout constants
@@ -35,6 +39,7 @@ const MIN_WEEKS = 10;
 const COLORS_HUMAN = ["#064e3b", "#065f46", "#059669", "#10b981", "#34d399"]; // Emerald shades
 const COLORS_AI = ["#4c1d95", "#5b21b6", "#7c3aed", "#8b5cf6", "#a78bfa"]; // Violet shades
 const COLORS_AUTOMATION = ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b"]; // Amber shades
+const COLORS_SOURCE_OVERLAY = ["#164e63", "#0e7490", "#0891b2", "#06b6d4", "#22d3ee"]; // Cyan shades
 
 const DAY_LABELS = ["Mon", "", "Wed", "", "Fri", "", ""] as const;
 
@@ -53,30 +58,82 @@ const MONTH_NAMES = [
   "Dec",
 ] as const;
 
+interface GradientStop {
+  offset: number;
+  color: string;
+}
+
+interface SquareFill {
+  fill: string | null;
+  gradientStops?: GradientStop[];
+}
+
+interface GridCell {
+  col: number;
+  row: number;
+  date: Date;
+  dateMs: number;
+  data: DailyDataPoint | undefined;
+}
+
+interface RenderedCell {
+  cell: GridCell;
+  gradientId: string;
+  fill: string | null;
+  gradientStops?: GradientStop[];
+  human: number;
+  ai: number;
+  automation: number;
+  total: number;
+  sourceOverlay: number;
+  dateLabel: string;
+  ariaLabel: string;
+}
+
+function getActivityLevel(total: number, maxActivity: number): number {
+  if (maxActivity <= 0) return 0;
+  return Math.min(4, Math.floor((total / maxActivity) * 5));
+}
+
 /**
- * Simplified square color: purely discrete levels based on activity.
- * Picks color family by dominant type (human / AI / automation).
+ * Returns either a single solid color or a left-to-right mixed gradient.
+ * Intensity still scales with total activity; composition reflects type shares.
  */
-function getSquareColor(
+function getSquareFill(
   human: number,
   ai: number,
   automation: number,
-  maxActivity: number
-): string | null {
+  maxActivity: number,
+  gradientId: string
+): SquareFill {
   const total = human + ai + automation;
-  if (total === 0) return null;
+  if (total === 0) return { fill: null };
 
-  // Pick color family by dominant type
-  let colorScale = COLORS_HUMAN;
-  if (ai >= human && ai >= automation) {
-    colorScale = COLORS_AI;
-  } else if (automation >= human && automation >= ai) {
-    colorScale = COLORS_AUTOMATION;
+  const intensity = getActivityLevel(total, maxActivity);
+  const segments = [
+    { value: human, color: COLORS_HUMAN[intensity] },
+    { value: ai, color: COLORS_AI[intensity] },
+    { value: automation, color: COLORS_AUTOMATION[intensity] },
+  ].filter((segment) => segment.value > 0);
+
+  if (segments.length === 1) {
+    return { fill: segments[0]?.color ?? COLORS_HUMAN[intensity] };
   }
 
-  // Discrete indexing (0-4) based on activity level
-  const index = Math.min(4, Math.floor((total / maxActivity) * 5));
-  return colorScale[index];
+  const gradientStops: GradientStop[] = [];
+  let consumed = 0;
+  for (const segment of segments) {
+    const start = (consumed / total) * 100;
+    consumed += segment.value;
+    const end = (consumed / total) * 100;
+    gradientStops.push({ offset: start, color: segment.color });
+    gradientStops.push({ offset: end, color: segment.color });
+  }
+
+  return {
+    fill: `url(#${gradientId})`,
+    gradientStops,
+  };
 }
 
 /**
@@ -105,13 +162,7 @@ function buildGrid(dataMap: Map<number, DailyDataPoint>, weeksShown: number) {
   const totalDays = weeksShown * 7 + todayDow + 1;
   const startDate = new Date(today.getTime() - (totalDays - 1) * 86_400_000);
 
-  const cells: Array<{
-    col: number;
-    row: number;
-    date: Date;
-    dateMs: number;
-    data: DailyDataPoint | undefined;
-  }> = [];
+  const cells: GridCell[] = [];
 
   for (let i = 0; i < totalDays; i++) {
     const cellDate = new Date(startDate.getTime() + i * 86_400_000);
@@ -163,6 +214,37 @@ function formatDate(date: Date): string {
   });
 }
 
+function formatAriaDate(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatCellAriaLabel(
+  dateLabel: string,
+  viewMode: "commits" | "loc",
+  human: number,
+  ai: number,
+  automation: number,
+  total: number,
+  sourceOverlay: number,
+  sourceOverlayLabel: string
+): string {
+  const unit = viewMode === "loc" ? "lines" : "commits";
+  if (total === 0) {
+    if (viewMode === "loc" && sourceOverlay > 0) {
+      return `${dateLabel}. No activity. ${sourceOverlayLabel}: ${sourceOverlay.toLocaleString()}.`;
+    }
+    return `${dateLabel}. No activity.`;
+  }
+  const overlayPart =
+    viewMode === "loc" ? ` ${sourceOverlayLabel}: ${sourceOverlay.toLocaleString()}.` : "";
+  return `${dateLabel}: ${total.toLocaleString()} ${unit}. H ${human.toLocaleString()}, AI ${ai.toLocaleString()}, Bot ${automation.toLocaleString()}.${overlayPart}`;
+}
+
 interface TooltipInfo {
   x: number;
   y: number;
@@ -172,6 +254,7 @@ interface TooltipInfo {
   automation: number;
   total: number;
   aiPercentage: string;
+  sourceOverlay: number;
 }
 
 export function ContributionHeatmap({
@@ -179,7 +262,12 @@ export function ContributionHeatmap({
   viewMode,
   isSyncing,
   includesPrivateData,
+  sourceOverlayByDate,
+  sourceOverlayLabel = "Source overlay",
 }: ContributionHeatmapProps) {
+  const gradientPrefix = useId().replace(/:/g, "");
+  const chartDescriptionId = `${gradientPrefix}-chart-description`;
+  const tableCaptionId = `${gradientPrefix}-table-caption`;
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
   const [tooltip, setTooltip] = useState<TooltipInfo | null>(null);
@@ -215,14 +303,20 @@ export function ContributionHeatmap({
     return map;
   }, [data]);
 
+  const sourceOverlayMap = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!sourceOverlayByDate) return map;
+    for (const [dateKey, value] of Object.entries(sourceOverlayByDate)) {
+      const date = Number(dateKey);
+      if (Number.isFinite(date) && typeof value === "number" && value > 0) {
+        map.set(date, value);
+      }
+    }
+    return map;
+  }, [sourceOverlayByDate]);
+
   const cells = useMemo(() => buildGrid(dataMap, visibleWeeks), [dataMap, visibleWeeks]);
   const monthLabels = useMemo(() => buildMonthLabels(cells), [cells]);
-
-  // Detect if data exists but none falls within the visible grid window
-  const hasVisibleData = useMemo(() => {
-    if (data.length === 0) return false;
-    return cells.some((cell) => cell.data !== undefined);
-  }, [data, cells]);
 
   // Maximum activity for intensity scaling
   const maxActivity = useMemo(() => {
@@ -236,6 +330,15 @@ export function ContributionHeatmap({
     }
     return max;
   }, [data, viewMode]);
+
+  const maxSourceOverlay = useMemo(() => {
+    if (viewMode !== "loc" || sourceOverlayMap.size === 0) return 0;
+    let max = 0;
+    for (const value of sourceOverlayMap.values()) {
+      if (value > max) max = value;
+    }
+    return max;
+  }, [sourceOverlayMap, viewMode]);
 
   // Detect if LOC view has suspiciously sparse data (possible enrichment gap)
   const locDataWarning = useMemo(() => {
@@ -252,40 +355,88 @@ export function ContributionHeatmap({
   const svgWidth = LABEL_LEFT + totalCols * CELL_STEP;
   const svgHeight = LABEL_TOP + ROWS * CELL_STEP;
 
-  const handleMouseEnter = useCallback(
-    (
-      e: React.MouseEvent<SVGRectElement>,
-      cell: { date: Date; data: DailyDataPoint | undefined }
-    ) => {
-      const rect = e.currentTarget.getBoundingClientRect();
+  const renderedCells = useMemo(() => {
+    return cells.map((cell): RenderedCell => {
       const human = viewMode === "loc" ? (cell.data?.humanAdditions ?? 0) : (cell.data?.human ?? 0);
       const ai = viewMode === "loc" ? (cell.data?.aiAdditions ?? 0) : (cell.data?.ai ?? 0);
       const automation =
         viewMode === "loc" ? (cell.data?.automationAdditions ?? 0) : (cell.data?.automation ?? 0);
       const total = human + ai + automation;
+      const sourceOverlay = viewMode === "loc" ? (sourceOverlayMap.get(cell.dateMs) ?? 0) : 0;
+      const dateLabel = formatDate(cell.date);
+      const ariaDateLabel = formatAriaDate(cell.date);
+      const gradientId = `${gradientPrefix}-${cell.dateMs}`;
+      const squareFill = getSquareFill(human, ai, automation, maxActivity, gradientId);
 
-      setTooltip({
-        x: rect.left + rect.width / 2,
-        y: rect.top,
-        dateLabel: formatDate(cell.date),
+      return {
+        cell,
+        gradientId,
+        fill: squareFill.fill,
+        gradientStops: squareFill.gradientStops,
         human,
         ai,
         automation,
         total,
-        aiPercentage: total > 0 ? ((ai / total) * 100).toFixed(0) : "0",
-      });
-    },
-    [viewMode]
-  );
+        sourceOverlay,
+        dateLabel,
+        ariaLabel: formatCellAriaLabel(
+          ariaDateLabel,
+          viewMode,
+          human,
+          ai,
+          automation,
+          total,
+          sourceOverlay,
+          sourceOverlayLabel
+        ),
+      };
+    });
+  }, [cells, viewMode, sourceOverlayMap, gradientPrefix, maxActivity, sourceOverlayLabel]);
 
-  const handleMouseLeave = useCallback(() => {
+  // Detect if data exists but none falls within the visible grid window
+  const hasVisibleData = useMemo(() => {
+    if (renderedCells.length === 0) return false;
+    return renderedCells.some(
+      (cell) => cell.total > 0 || (viewMode === "loc" && cell.sourceOverlay > 0)
+    );
+  }, [renderedCells, viewMode]);
+
+  const accessibleRows = useMemo(() => {
+    return renderedCells.filter(
+      (cell) => cell.total > 0 || (viewMode === "loc" && cell.sourceOverlay > 0)
+    );
+  }, [renderedCells, viewMode]);
+
+  const showTooltipForCell = useCallback((target: SVGRectElement, renderedCell: RenderedCell) => {
+    const rect = target.getBoundingClientRect();
+    setTooltip({
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+      dateLabel: renderedCell.dateLabel,
+      human: renderedCell.human,
+      ai: renderedCell.ai,
+      automation: renderedCell.automation,
+      total: renderedCell.total,
+      aiPercentage:
+        renderedCell.total > 0 ? ((renderedCell.ai / renderedCell.total) * 100).toFixed(0) : "0",
+      sourceOverlay: renderedCell.sourceOverlay,
+    });
+  }, []);
+
+  const clearTooltip = useCallback(() => {
     setTooltip(null);
   }, []);
 
-  const hasData = data.length > 0;
+  const hasData = data.length > 0 || (viewMode === "loc" && sourceOverlayMap.size > 0);
+  const showSourceOverlayLegend = viewMode === "loc" && sourceOverlayMap.size > 0;
 
   return (
     <div ref={containerRef} className="relative w-full">
+      <p id={chartDescriptionId} className="sr-only">
+        Contribution heatmap for the last twelve months, grouped by day in UTC. Squares may contain
+        mixed colors to represent human, AI, and automation shares. Focus a square for day details,
+        or use the data table below for a full accessible list of active days.
+      </p>
       <div>
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
@@ -293,7 +444,24 @@ export function ContributionHeatmap({
           style={{ aspectRatio: `${svgWidth} / ${svgHeight}` }}
           role="img"
           aria-label="Contribution heatmap showing human vs AI vs automation activity"
+          aria-describedby={chartDescriptionId}
         >
+          <defs>
+            {renderedCells.map(({ gradientId, gradientStops }) =>
+              gradientStops ? (
+                <linearGradient key={gradientId} id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                  {gradientStops.map((stop) => (
+                    <stop
+                      key={`${gradientId}-${stop.offset.toFixed(4)}-${stop.color}`}
+                      offset={`${stop.offset}%`}
+                      stopColor={stop.color}
+                    />
+                  ))}
+                </linearGradient>
+              ) : null
+            )}
+          </defs>
+
           {/* Month labels along top */}
           {monthLabels.map(({ label, col }) => (
             <text
@@ -322,31 +490,38 @@ export function ContributionHeatmap({
           )}
 
           {/* Cells */}
-          {cells.map((cell) => {
-            const human =
-              viewMode === "loc" ? (cell.data?.humanAdditions ?? 0) : (cell.data?.human ?? 0);
-            const ai = viewMode === "loc" ? (cell.data?.aiAdditions ?? 0) : (cell.data?.ai ?? 0);
-            const automation =
-              viewMode === "loc"
-                ? (cell.data?.automationAdditions ?? 0)
-                : (cell.data?.automation ?? 0);
-            const color = getSquareColor(human, ai, automation, maxActivity);
-
+          {renderedCells.map((renderedCell) => {
+            const { cell, fill, total, ariaLabel, sourceOverlay } = renderedCell;
+            const sourceOverlayLevel = getActivityLevel(sourceOverlay, maxSourceOverlay);
             return (
-              // biome-ignore lint/a11y/noStaticElementInteractions: SVG rect hover is for tooltip progressive enhancement; parent svg has role="img" + aria-label
-              <rect
-                key={cell.dateMs}
-                x={LABEL_LEFT + cell.col * CELL_STEP}
-                y={LABEL_TOP + cell.row * CELL_STEP}
-                width={CELL_SIZE}
-                height={CELL_SIZE}
-                rx={2}
-                ry={2}
-                fill={color ?? undefined}
-                className={`cursor-pointer transition-opacity hover:opacity-80 ${color === null ? "fill-neutral-800" : ""}`}
-                onMouseEnter={(e) => handleMouseEnter(e, cell)}
-                onMouseLeave={handleMouseLeave}
-              />
+              <g key={cell.dateMs}>
+                {/* biome-ignore lint/a11y/noStaticElementInteractions: SVG rect supports hover + keyboard focus to expose the same tooltip content */}
+                <rect
+                  x={LABEL_LEFT + cell.col * CELL_STEP}
+                  y={LABEL_TOP + cell.row * CELL_STEP}
+                  width={CELL_SIZE}
+                  height={CELL_SIZE}
+                  rx={2}
+                  ry={2}
+                  fill={fill ?? undefined}
+                  className={`cursor-pointer transition-opacity hover:opacity-80 ${fill === null ? "fill-neutral-800" : ""}`}
+                  tabIndex={total > 0 || (viewMode === "loc" && sourceOverlay > 0) ? 0 : -1}
+                  aria-label={ariaLabel}
+                  onMouseEnter={(e) => showTooltipForCell(e.currentTarget, renderedCell)}
+                  onMouseLeave={clearTooltip}
+                  onFocus={(e) => showTooltipForCell(e.currentTarget, renderedCell)}
+                  onBlur={clearTooltip}
+                />
+                {viewMode === "loc" && sourceOverlay > 0 && (
+                  <circle
+                    cx={LABEL_LEFT + cell.col * CELL_STEP + CELL_SIZE / 2}
+                    cy={LABEL_TOP + cell.row * CELL_STEP + CELL_SIZE / 2}
+                    r={Math.max(1.5, 1.5 + sourceOverlayLevel * 0.7)}
+                    fill={COLORS_SOURCE_OVERLAY[sourceOverlayLevel]}
+                    className="pointer-events-none"
+                  />
+                )}
+              </g>
             );
           })}
         </svg>
@@ -384,7 +559,10 @@ export function ContributionHeatmap({
       {/* Legend — simplified discrete boxes */}
       <div className="mt-4 flex flex-col gap-3 text-[11px] text-neutral-500 border-t border-neutral-800 pt-4">
         <div>
-          <span>{viewMode === "loc" ? "Code added per day" : "Commits per day"} — UTC</span>
+          <span>
+            {viewMode === "loc" ? "Code added per day" : "Commits per day"} — UTC. Mixed days are
+            split by share.
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex items-center gap-1.5">
@@ -412,8 +590,54 @@ export function ContributionHeatmap({
             </div>
             <span>(Automation)</span>
           </div>
+          <div className="flex items-center gap-1.5 border-l border-neutral-800 pl-4">
+            <div
+              className="h-2.5 w-2.5 rounded-sm"
+              style={{
+                background: `linear-gradient(90deg, ${COLORS_HUMAN[2]} 0% 33%, ${COLORS_AI[2]} 33% 66%, ${COLORS_AUTOMATION[2]} 66% 100%)`,
+              }}
+            />
+            <span>(Mixed)</span>
+          </div>
+          {showSourceOverlayLegend && (
+            <div className="flex items-center gap-1.5 border-l border-neutral-800 pl-4">
+              <div className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
+              <span>{sourceOverlayLabel} (Overlay)</span>
+            </div>
+          )}
         </div>
       </div>
+
+      <table className="sr-only" aria-describedby={chartDescriptionId}>
+        <caption id={tableCaptionId}>
+          Daily {viewMode === "loc" ? "lines added" : "commits"} for active days in the last twelve
+          months (UTC)
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Human</th>
+            <th scope="col">AI</th>
+            <th scope="col">Automation</th>
+            {viewMode === "loc" && <th scope="col">{sourceOverlayLabel}</th>}
+            <th scope="col">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {accessibleRows.map(
+            ({ cell, dateLabel, human, ai, automation, total, sourceOverlay }) => (
+              <tr key={`table-${cell.dateMs}`}>
+                <th scope="row">{dateLabel}</th>
+                <td>{human.toLocaleString()}</td>
+                <td>{ai.toLocaleString()}</td>
+                <td>{automation.toLocaleString()}</td>
+                {viewMode === "loc" && <td>{sourceOverlay.toLocaleString()}</td>}
+                <td>{total.toLocaleString()}</td>
+              </tr>
+            )
+          )}
+        </tbody>
+      </table>
 
       {/* Tooltip — Card UI */}
       {tooltip && (
@@ -459,6 +683,17 @@ export function ContributionHeatmap({
                 {tooltip.automation.toLocaleString()}
               </span>
             </div>
+            {viewMode === "loc" && (
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2.5 text-neutral-600 dark:text-neutral-300">
+                  <div className="h-2.5 w-2.5 rounded-full bg-cyan-500" />
+                  {sourceOverlayLabel}
+                </span>
+                <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                  {tooltip.sourceOverlay.toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

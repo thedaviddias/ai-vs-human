@@ -267,7 +267,7 @@ export function StatsSummary({
           icon={<Cpu className="h-5 w-5" />}
           subtext={
             hasPrivateEnrichment ? (
-              <span className="text-purple-400/80">
+              <span className="text-blue-400/80">
                 incl. {formatNumber(privateCommitCount)} private
               </span>
             ) : repoCount ? (

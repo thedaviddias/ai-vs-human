@@ -52,6 +52,13 @@ next-env.d.ts
 .gemini/
 .gitnexus/
 
+# desktop app (tauri)
+apps/desktop/node_modules/
+apps/desktop/dist/*
+!apps/desktop/dist/.gitkeep
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
 # admin scripts (local-only, not committed)
 scripts/resync-all-users.ts
 scripts/RESYNC-GUIDE.md

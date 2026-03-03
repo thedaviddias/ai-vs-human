@@ -2,6 +2,7 @@ import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalMutation, internalQuery } from "../_generated/server";
+import { DETAILED_BREAKDOWN_VERSION } from "../classification/breakdownVersion";
 import { classificationValidator } from "../lib/validators";
 
 const commitArg = v.object({
@@ -37,17 +38,52 @@ export const batchInsert = internalMutation({
         .first();
 
       if (existing) {
-        // Update classification + co-authors on re-sync so new detection
-        // logic takes effect without needing to delete and re-insert
-        if (
-          existing.classification !== commit.classification ||
-          JSON.stringify(existing.coAuthors) !== JSON.stringify(commit.coAuthors)
-        ) {
-          await ctx.db.patch(existing._id, {
-            classification: commit.classification,
-            coAuthors: commit.coAuthors,
-            fullMessage: commit.fullMessage,
-          });
+        // On re-sync, refresh mutable commit metadata so incremental/full backfills
+        // can upgrade old rows without deleting and re-inserting.
+        const patch: Record<string, unknown> = {};
+
+        if (existing.classification !== commit.classification) {
+          patch.classification = commit.classification;
+        }
+        if (JSON.stringify(existing.coAuthors) !== JSON.stringify(commit.coAuthors)) {
+          patch.coAuthors = commit.coAuthors;
+        }
+        if (existing.fullMessage !== commit.fullMessage) {
+          patch.fullMessage = commit.fullMessage;
+        }
+        if (existing.message !== commit.message) {
+          patch.message = commit.message;
+        }
+        if (existing.authoredAt !== commit.authoredAt) {
+          patch.authoredAt = commit.authoredAt;
+        }
+        if (existing.committedAt !== commit.committedAt) {
+          patch.committedAt = commit.committedAt;
+        }
+        if (existing.authorName !== commit.authorName) {
+          patch.authorName = commit.authorName;
+        }
+        if (existing.authorEmail !== commit.authorEmail) {
+          patch.authorEmail = commit.authorEmail;
+        }
+        if (existing.authorGithubUserId !== commit.authorGithubUserId) {
+          patch.authorGithubUserId = commit.authorGithubUserId;
+        }
+        if (existing.authorLogin !== commit.authorLogin) {
+          patch.authorLogin = commit.authorLogin;
+        }
+        if (existing.authorType !== commit.authorType) {
+          patch.authorType = commit.authorType;
+        }
+        if (existing.committerName !== commit.committerName) {
+          patch.committerName = commit.committerName;
+        }
+        if (existing.committerEmail !== commit.committerEmail) {
+          patch.committerEmail = commit.committerEmail;
+        }
+
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(existing._id, patch);
         }
         continue;
       }
@@ -268,6 +304,7 @@ export const writeRepoStats = internalMutation({
     await ctx.db.patch(args.repoId, {
       toolBreakdown: args.toolBreakdown,
       botBreakdown: args.botBreakdown,
+      detailedBreakdownVersion: DETAILED_BREAKDOWN_VERSION,
       prAttribution: args.prAttribution,
     });
   },

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
+import { DETAILED_BREAKDOWN_VERSION } from "../classification/breakdownVersion";
 import { shouldQueueIncrementalRepo } from "../github/syncWindow";
 import { hasValidAnalyzeApiKey } from "../lib/analyzeApiKey";
 
@@ -39,6 +40,7 @@ export const requestUserAnalysis = mutation({
         let shouldQueue = false;
         let reason:
           | "error_retry"
+          | "missing_detailed_breakdown"
           | "changed"
           | "unchanged"
           | "already_pending"
@@ -53,8 +55,17 @@ export const requestUserAnalysis = mutation({
             incomingPushedAt: repo.pushedAt,
             storedPushedAt: existing.pushedAt,
           });
-          shouldQueue = repoChanged;
-          reason = repoChanged ? "changed" : "unchanged";
+          const hasCurrentDetailedBreakdown =
+            existing.detailedBreakdownVersion === DETAILED_BREAKDOWN_VERSION &&
+            existing.toolBreakdown !== undefined &&
+            existing.botBreakdown !== undefined;
+          const needsDetailedBackfill = !hasCurrentDetailedBreakdown;
+          shouldQueue = repoChanged || needsDetailedBackfill;
+          reason = needsDetailedBackfill
+            ? "missing_detailed_breakdown"
+            : repoChanged
+              ? "changed"
+              : "unchanged";
         } else if (existing.syncStatus === "pending") {
           reason = "already_pending";
         } else if (existing.syncStatus === "syncing") {

@@ -6,6 +6,7 @@ import { withPlausibleProxy } from "next-plausible";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["localhost", "127.0.0.1"],
+  transpilePackages: ["@aivshuman/source-contract"],
   pageExtensions: ["ts", "tsx", "md", "mdx"],
   experimental: {
     mdxRs: {
