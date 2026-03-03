@@ -36,8 +36,10 @@ interface PrivateRepoCardProps {
   showPrivateDataPublicly?: boolean;
   /** Called when user toggles public visibility */
   onToggleVisibility?: (show: boolean) => void;
-  /** Called when user requests a re-sync */
+  /** Called when user requests incremental sync */
   onResync?: () => Promise<void>;
+  /** Called when user requests a full rebuild */
+  onFullRebuild?: () => Promise<void>;
   /** Total number of private repos found */
   totalRepos?: number;
   /** Number of repos processed so far */
@@ -98,6 +100,7 @@ export function PrivateRepoCard({
   showPrivateDataPublicly,
   onToggleVisibility,
   onResync,
+  onFullRebuild,
   totalRepos,
   processedRepos,
   totalCommitsFound,
@@ -108,7 +111,9 @@ export function PrivateRepoCard({
   const [isRequesting, setIsRequesting] = useState(false);
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [isResyncing, setIsResyncing] = useState(false);
+  const [isFullRebuilding, setIsFullRebuilding] = useState(false);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
+  const [showFullRebuildConfirm, setShowFullRebuildConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isSyncing = syncStatus === "syncing";
@@ -119,7 +124,7 @@ export function PrivateRepoCard({
     setIsRequesting(true);
     setError(null);
     try {
-      await requestSync();
+      await requestSync({ mode: "incremental" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start sync");
     } finally {
@@ -149,12 +154,29 @@ export function PrivateRepoCard({
       if (onResync) {
         await onResync();
       } else {
-        await requestSync();
+        await requestSync({ mode: "incremental" });
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start re-sync");
     } finally {
       setIsResyncing(false);
+    }
+  };
+
+  const handleFullRebuildConfirm = async () => {
+    setShowFullRebuildConfirm(false);
+    setIsFullRebuilding(true);
+    setError(null);
+    try {
+      if (onFullRebuild) {
+        await onFullRebuild();
+      } else {
+        await requestSync({ mode: "full" });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start full rebuild");
+    } finally {
+      setIsFullRebuilding(false);
     }
   };
 
@@ -241,7 +263,7 @@ export function PrivateRepoCard({
             <button
               type="button"
               onClick={handleResync}
-              disabled={isResyncing}
+              disabled={isResyncing || isFullRebuilding}
               className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-purple-700 hover:text-purple-400"
             >
               {isResyncing ? (
@@ -249,12 +271,25 @@ export function PrivateRepoCard({
               ) : (
                 <RefreshCw className="h-3 w-3" />
               )}
-              Re-sync
+              Sync latest
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowFullRebuildConfirm(true)}
+              disabled={isResyncing || isFullRebuilding}
+              className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-amber-700 hover:text-amber-400"
+            >
+              {isFullRebuilding ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+              Full rebuild
             </button>
             <button
               type="button"
               onClick={() => setShowUnlinkConfirm(true)}
-              disabled={isUnlinking}
+              disabled={isUnlinking || isResyncing || isFullRebuilding}
               className="flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-400 transition-colors hover:border-red-700 hover:text-red-400"
             >
               {isUnlinking ? (
@@ -286,6 +321,9 @@ export function PrivateRepoCard({
         </div>
 
         {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        <p className="mt-2 text-[11px] text-neutral-500">
+          Sync latest uses an incremental window. Full rebuild reprocesses the full 2-year history.
+        </p>
 
         <ConfirmModal
           isOpen={showUnlinkConfirm}
@@ -297,6 +335,16 @@ export function PrivateRepoCard({
           cancelLabel="Keep My Data"
           destructive
           isLoading={isUnlinking}
+        />
+        <ConfirmModal
+          isOpen={showFullRebuildConfirm}
+          onClose={() => setShowFullRebuildConfirm(false)}
+          onConfirm={handleFullRebuildConfirm}
+          title="Full Rebuild Private Data"
+          description="This reprocesses the full 2-year private history and may take significantly longer than Sync latest."
+          confirmLabel="Start Full Rebuild"
+          cancelLabel="Cancel"
+          isLoading={isFullRebuilding}
         />
       </div>
     );

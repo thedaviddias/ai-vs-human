@@ -6,15 +6,9 @@ import { internalAction } from "../_generated/server";
 import type { CommitPayload } from "../classification/botDetector";
 import { classifyCommit } from "../classification/botDetector";
 import { extractRateLimitInfo, getGitHubHeaders, getRetryDelayMs } from "./githubApi";
+import { getTwoYearFloorMs, toIsoTimestamp } from "./syncWindow";
 
 const PER_PAGE = 100;
-
-// Only fetch commits from the last 2 years
-function getSinceDate(): string {
-  const twoYearsAgo = new Date();
-  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-  return twoYearsAgo.toISOString();
-}
 
 export const fetchCommits = internalAction({
   args: {
@@ -22,6 +16,7 @@ export const fetchCommits = internalAction({
     owner: v.string(),
     name: v.string(),
     page: v.number(),
+    sinceMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const token = process.env.GITHUB_TOKEN;
@@ -40,7 +35,18 @@ export const fetchCommits = internalAction({
       });
     }
 
-    const since = getSinceDate();
+    const sinceMs = args.sinceMs ?? getTwoYearFloorMs();
+    const since = toIsoTimestamp(sinceMs);
+    if (args.page === 1) {
+      console.log(
+        "[fetchCommits] Starting commit fetch",
+        JSON.stringify({
+          fullName: `${args.owner}/${args.name}`,
+          sinceMs,
+          since,
+        })
+      );
+    }
     const url = `https://api.github.com/repos/${args.owner}/${args.name}/commits?per_page=${PER_PAGE}&page=${args.page}&since=${since}`;
 
     const response = await fetch(url, {
@@ -57,6 +63,7 @@ export const fetchCommits = internalAction({
         owner: args.owner,
         name: args.name,
         page: args.page,
+        sinceMs,
       });
       return;
     }
@@ -81,6 +88,7 @@ export const fetchCommits = internalAction({
         repoId: args.repoId,
         owner: args.owner,
         name: args.name,
+        sinceMs,
         cursor: undefined,
         totalCommits: (args.page - 1) * PER_PAGE,
       });
@@ -120,6 +128,15 @@ export const fetchCommits = internalAction({
       repoId: args.repoId,
       syncCommitsFetched: commitsSoFar,
     });
+    console.log(
+      "[fetchCommits] Page processed",
+      JSON.stringify({
+        fullName: `${args.owner}/${args.name}`,
+        page: args.page,
+        commitsFetched: commitsSoFar,
+        sinceMs,
+      })
+    );
 
     // Check if there are more pages
     const linkHeader = response.headers.get("Link");
@@ -133,6 +150,7 @@ export const fetchCommits = internalAction({
         owner: args.owner,
         name: args.name,
         page: args.page + 1,
+        sinceMs,
       });
     } else {
       // Done fetching commits — enrich with LOC data via GraphQL,
@@ -145,6 +163,7 @@ export const fetchCommits = internalAction({
         repoId: args.repoId,
         owner: args.owner,
         name: args.name,
+        sinceMs,
         cursor: undefined,
         totalCommits: (args.page - 1) * PER_PAGE + commits.length,
       });

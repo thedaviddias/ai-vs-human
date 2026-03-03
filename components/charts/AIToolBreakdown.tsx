@@ -22,6 +22,7 @@ import {
   SourcegraphIcon,
   TabnineIcon,
 } from "@/components/icons/custom-tool-icons";
+import { isUnknownAiKey } from "@/lib/unknownAi";
 import { type AiToolBreakdownItem, sortAiBreakdown } from "./toolBreakdownSort";
 
 // Keys whose icons come from simple-icons (use `size` prop instead of className)
@@ -48,6 +49,7 @@ const SIMPLE_ICON_KEYS = new Set([
 interface AIToolBreakdownProps {
   toolBreakdown: AiToolBreakdownItem[];
   viewMode: "commits" | "loc";
+  excludeUnknownTools?: boolean;
 }
 
 const ToolIcons: Record<string, React.ComponentType<{ className?: string; size?: number }>> = {
@@ -136,15 +138,22 @@ function formatNumber(n: number): string {
   return n.toString();
 }
 
-export function AIToolBreakdown({ toolBreakdown, viewMode }: AIToolBreakdownProps) {
+export function AIToolBreakdown({
+  toolBreakdown,
+  viewMode,
+  excludeUnknownTools = false,
+}: AIToolBreakdownProps) {
   const tools = useMemo(() => {
     if (!toolBreakdown || !Array.isArray(toolBreakdown)) return [];
 
-    const filtered = toolBreakdown.filter((tool) =>
-      viewMode === "commits" ? tool.commits > 0 : tool.additions > 0
-    );
+    const filtered = toolBreakdown.filter((tool) => {
+      if (excludeUnknownTools && isUnknownAiKey(tool.key)) {
+        return false;
+      }
+      return viewMode === "commits" ? tool.commits > 0 : tool.additions > 0;
+    });
     return sortAiBreakdown(filtered, viewMode);
-  }, [toolBreakdown, viewMode]);
+  }, [excludeUnknownTools, toolBreakdown, viewMode]);
 
   if (tools.length === 0) return null;
 

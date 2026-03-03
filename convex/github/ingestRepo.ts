@@ -74,6 +74,7 @@ export const markSynced = internalMutation({
       syncStatus: "synced",
       lastSyncedAt: Date.now(),
       totalCommitsFetched: args.totalCommits,
+      forceFullResync: false,
       syncStage: undefined,
       syncCommitsFetched: undefined,
     });

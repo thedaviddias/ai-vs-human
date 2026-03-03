@@ -5,6 +5,7 @@ import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import { detectAiConfigs } from "./aiDetection";
 import { extractRateLimitInfo, getGitHubHeaders, getRetryDelayMs } from "./githubApi";
+import { computeRepoSinceMs } from "./syncWindow";
 
 const MAX_RETRIES = 3;
 
@@ -31,6 +32,11 @@ export const fetchRepo = internalAction({
     const repo = await ctx.runQuery(internal.queries.repos.getRepoById, {
       repoId: args.repoId,
     });
+    const sinceMs = computeRepoSinceMs({
+      lastSyncedAt: repo?.lastSyncedAt,
+      forceFullResync: repo?.forceFullResync === true,
+    });
+    const mode = repo?.forceFullResync ? "full" : "incremental";
 
     const metadataHeaders: Record<string, string> = {
       ...getGitHubHeaders(token),
@@ -72,13 +78,23 @@ export const fetchRepo = internalAction({
     // 304 Not Modified — repo hasn't changed, skip metadata update
     if (response.status === 304) {
       console.log(
-        `[fetchRepo] ${args.owner}/${args.name} not modified (ETag match), skipping to commits`
+        `[fetchRepo] ${args.owner}/${args.name} not modified (ETag match), continuing with ${mode} sync`
+      );
+      console.log(
+        "[fetchRepo] Sync window",
+        JSON.stringify({
+          fullName: `${args.owner}/${args.name}`,
+          mode,
+          sinceMs,
+          lastSyncedAt: repo?.lastSyncedAt ?? null,
+        })
       );
       await ctx.scheduler.runAfter(0, internal.github.fetchCommits.fetchCommits, {
         repoId: args.repoId,
         owner: args.owner,
         name: args.name,
         page: 1,
+        sinceMs,
       });
       return;
     }
@@ -169,11 +185,21 @@ export const fetchRepo = internalAction({
     });
 
     // Schedule commit fetching
+    console.log(
+      "[fetchRepo] Sync window",
+      JSON.stringify({
+        fullName: `${args.owner}/${args.name}`,
+        mode,
+        sinceMs,
+        lastSyncedAt: repo?.lastSyncedAt ?? null,
+      })
+    );
     await ctx.scheduler.runAfter(0, internal.github.fetchCommits.fetchCommits, {
       repoId: args.repoId,
       owner: args.owner,
       name: args.name,
       page: 1,
+      sinceMs,
     });
   },
 });

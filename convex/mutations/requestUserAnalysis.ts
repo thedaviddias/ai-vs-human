@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
+import { shouldQueueIncrementalRepo } from "../github/syncWindow";
 import { hasValidAnalyzeApiKey } from "../lib/analyzeApiKey";
 
 export const requestUserAnalysis = mutation({
@@ -24,6 +25,7 @@ export const requestUserAnalysis = mutation({
 
     for (const repo of limitedRepos) {
       const fullName = `${repo.owner}/${repo.name}`;
+      const requestedAt = Date.now();
 
       const existing = await ctx.db
         .query("repos")
@@ -31,21 +33,56 @@ export const requestUserAnalysis = mutation({
         .unique();
 
       if (existing) {
-        // Retry repos stuck in "error" state
+        // Incremental mode: queue only changed synced repos, plus repos in error.
         const patch: Record<string, unknown> = {};
+        let repoChanged = false;
+        let shouldQueue = false;
+
         if (existing.syncStatus === "error") {
+          shouldQueue = true;
+        } else if (existing.syncStatus === "synced") {
+          repoChanged = shouldQueueIncrementalRepo({
+            incomingPushedAt: repo.pushedAt,
+            storedPushedAt: existing.pushedAt,
+          });
+          shouldQueue = repoChanged;
+        }
+
+        if (shouldQueue) {
           patch.syncStatus = "pending";
           patch.syncError = undefined;
+          patch.syncStage = undefined;
+          patch.syncCommitsFetched = undefined;
+          patch.requestedAt = requestedAt;
+          patch.forceFullResync = false;
         }
+
         // Always refresh pushedAt so the sync queue stays in latest-first order
         if (repo.pushedAt !== undefined) {
           patch.pushedAt = repo.pushedAt;
         }
+
         if (Object.keys(patch).length > 0) {
           await ctx.db.patch(existing._id, patch);
         }
 
-        results.push({ fullName, status: existing.syncStatus, existing: true });
+        console.log(
+          "[requestUserAnalysis] Existing repo decision",
+          JSON.stringify({
+            fullName,
+            syncStatus: existing.syncStatus,
+            repoChanged,
+            shouldQueue,
+            incomingPushedAt: repo.pushedAt ?? null,
+            storedPushedAt: existing.pushedAt ?? null,
+          })
+        );
+
+        results.push({
+          fullName,
+          status: (patch.syncStatus as string | undefined) ?? existing.syncStatus,
+          existing: true,
+        });
         continue;
       }
 
@@ -56,9 +93,21 @@ export const requestUserAnalysis = mutation({
         defaultBranch: "main",
         githubId: 0,
         syncStatus: "pending",
-        requestedAt: Date.now(),
+        requestedAt,
+        forceFullResync: false,
         ...(repo.pushedAt !== undefined ? { pushedAt: repo.pushedAt } : {}),
       });
+
+      console.log(
+        "[requestUserAnalysis] New repo queued",
+        JSON.stringify({
+          fullName,
+          syncStatus: "pending",
+          repoChanged: true,
+          incomingPushedAt: repo.pushedAt ?? null,
+          storedPushedAt: null,
+        })
+      );
 
       results.push({ fullName, status: "pending" as const, existing: false });
     }

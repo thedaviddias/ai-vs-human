@@ -32,6 +32,7 @@ import type * as github_recoverStuckRepos from "../github/recoverStuckRepos.js";
 import type * as github_resyncAffectedRepos from "../github/resyncAffectedRepos.js";
 import type * as github_resyncStaleRepos from "../github/resyncStaleRepos.js";
 import type * as github_statsComputation from "../github/statsComputation.js";
+import type * as github_syncWindow from "../github/syncWindow.js";
 import type * as http from "../http.js";
 import type * as lib_analyzeApiKey from "../lib/analyzeApiKey.js";
 import type * as lib_authHelpers from "../lib/authHelpers.js";
@@ -91,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   "github/resyncAffectedRepos": typeof github_resyncAffectedRepos;
   "github/resyncStaleRepos": typeof github_resyncStaleRepos;
   "github/statsComputation": typeof github_statsComputation;
+  "github/syncWindow": typeof github_syncWindow;
   http: typeof http;
   "lib/analyzeApiKey": typeof lib_analyzeApiKey;
   "lib/authHelpers": typeof lib_authHelpers;

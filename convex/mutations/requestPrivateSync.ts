@@ -1,3 +1,4 @@
+import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import { mutation } from "../_generated/server";
 import { authComponent } from "../auth";
@@ -16,8 +17,11 @@ import { resolveGitHubLogin } from "../lib/authHelpers";
  * never exposed to the client.
  */
 export const requestPrivateSync = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    mode: v.optional(v.union(v.literal("incremental"), v.literal("full"))),
+  },
+  handler: async (ctx, args) => {
+    const mode = args.mode ?? "incremental";
     // 1. Verify authentication
     // getAuthUser throws ConvexError("Unauthenticated") instead of returning null
     let user: Awaited<ReturnType<typeof authComponent.getAuthUser>>;
@@ -75,8 +79,9 @@ export const requestPrivateSync = mutation({
     await ctx.scheduler.runAfter(0, internal.github.privateRepoSync.privateRepoSync, {
       githubLogin,
       githubToken: githubAccountDoc.accessToken,
+      mode,
     });
 
-    return { githubLogin, status: "syncing" };
+    return { githubLogin, status: "syncing", mode };
   },
 });

@@ -82,18 +82,33 @@ export const resyncUser = mutation({
       };
     }
 
-    // Reset ALL repos to pending — including stuck "syncing" ones
+    // Reset ALL repos to pending for a full rebuild.
+    // Even already-pending repos are flagged to force a full 2-year window.
     let reset = 0;
     for (const repo of ownerRepos) {
+      const patch: Record<string, unknown> = {
+        forceFullResync: true,
+        requestedAt: Date.now(),
+      };
+
       if (repo.syncStatus !== "pending") {
-        await ctx.db.patch(repo._id, {
-          syncStatus: "pending",
-          syncError: undefined,
-          syncStage: undefined,
-          syncCommitsFetched: undefined,
-        });
+        patch.syncStatus = "pending";
+        patch.syncError = undefined;
+        patch.syncStage = undefined;
+        patch.syncCommitsFetched = undefined;
         reset++;
       }
+
+      await ctx.db.patch(repo._id, patch);
+
+      console.log(
+        "[resyncUser] Full rebuild queued",
+        JSON.stringify({
+          repoId: repo._id,
+          fullName: repo.fullName,
+          previousStatus: repo.syncStatus,
+        })
+      );
     }
 
     return {

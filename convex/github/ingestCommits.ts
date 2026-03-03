@@ -33,7 +33,7 @@ export const batchInsert = internalMutation({
     for (const commit of args.commits) {
       const existing = await ctx.db
         .query("commits")
-        .withIndex("by_sha", (q) => q.eq("sha", commit.sha))
+        .withIndex("by_repo_and_sha", (q) => q.eq("repoId", args.repoId).eq("sha", commit.sha))
         .first();
 
       if (existing) {
@@ -64,10 +64,11 @@ export const batchInsert = internalMutation({
 
 /**
  * Patches stored commits with additions/deletions from the GraphQL enrichment step.
- * Uses the by_sha index for O(1) lookup per SHA.
+ * Uses the by_repo_and_sha index for scoped O(1) lookup per SHA.
  */
 export const batchUpdateLoc = internalMutation({
   args: {
+    repoId: v.id("repos"),
     updates: v.array(
       v.object({
         sha: v.string(),
@@ -81,7 +82,7 @@ export const batchUpdateLoc = internalMutation({
     for (const update of args.updates) {
       const existing = await ctx.db
         .query("commits")
-        .withIndex("by_sha", (q) => q.eq("sha", update.sha))
+        .withIndex("by_repo_and_sha", (q) => q.eq("repoId", args.repoId).eq("sha", update.sha))
         .first();
       if (existing) {
         await ctx.db.patch(existing._id, {
@@ -300,6 +301,39 @@ export const deleteRepoCommits = internalMutation({
     if (commits.length === BATCH_SIZE) {
       await ctx.scheduler.runAfter(0, internal.github.ingestCommits.deleteRepoCommits, {
         repoId: args.repoId,
+      });
+    }
+  },
+});
+
+/**
+ * Prunes commit rows older than a cutoff timestamp.
+ *
+ * This keeps a rolling 2-year ledger so incremental sync can recompute
+ * accurate stats while bounding storage.
+ */
+export const deleteRepoCommitsBefore = internalMutation({
+  args: {
+    repoId: v.id("repos"),
+    olderThanMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const BATCH_SIZE = 500;
+    const commits = await ctx.db
+      .query("commits")
+      .withIndex("by_repo_and_date", (q) =>
+        q.eq("repoId", args.repoId).lt("authoredAt", args.olderThanMs)
+      )
+      .take(BATCH_SIZE);
+
+    for (const commit of commits) {
+      await ctx.db.delete(commit._id);
+    }
+
+    if (commits.length === BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.github.ingestCommits.deleteRepoCommitsBefore, {
+        repoId: args.repoId,
+        olderThanMs: args.olderThanMs,
       });
     }
   },

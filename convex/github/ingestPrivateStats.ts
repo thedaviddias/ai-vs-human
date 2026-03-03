@@ -29,14 +29,23 @@ export const replacePrivateDailyStats = internalMutation({
       })
     ),
     isFirstBatch: v.optional(v.boolean()),
+    replaceFromDate: v.optional(v.number()),
   },
-  handler: async (ctx, { githubLogin, dailyStats, isFirstBatch = true }) => {
+  handler: async (ctx, { githubLogin, dailyStats, isFirstBatch = true, replaceFromDate }) => {
     // Only delete existing stats if this is the first batch
     if (isFirstBatch) {
-      const existing = await ctx.db
-        .query("userPrivateDailyStats")
-        .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
-        .collect();
+      const existing =
+        replaceFromDate !== undefined
+          ? await ctx.db
+              .query("userPrivateDailyStats")
+              .withIndex("by_login_and_date", (q) =>
+                q.eq("githubLogin", githubLogin).gte("date", replaceFromDate)
+              )
+              .collect()
+          : await ctx.db
+              .query("userPrivateDailyStats")
+              .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
+              .collect();
 
       for (const row of existing) {
         await ctx.db.delete(row._id);
@@ -88,14 +97,23 @@ export const replacePrivateWeeklyStats = internalMutation({
       })
     ),
     isFirstBatch: v.optional(v.boolean()),
+    replaceFromWeekStart: v.optional(v.number()),
   },
-  handler: async (ctx, { githubLogin, weeklyStats, isFirstBatch = true }) => {
+  handler: async (ctx, { githubLogin, weeklyStats, isFirstBatch = true, replaceFromWeekStart }) => {
     // Only delete existing stats if this is the first batch
     if (isFirstBatch) {
-      const existing = await ctx.db
-        .query("userPrivateWeeklyStats")
-        .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
-        .collect();
+      const existing =
+        replaceFromWeekStart !== undefined
+          ? await ctx.db
+              .query("userPrivateWeeklyStats")
+              .withIndex("by_login_and_week", (q) =>
+                q.eq("githubLogin", githubLogin).gte("weekStart", replaceFromWeekStart)
+              )
+              .collect()
+          : await ctx.db
+              .query("userPrivateWeeklyStats")
+              .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
+              .collect();
 
       for (const row of existing) {
         await ctx.db.delete(row._id);

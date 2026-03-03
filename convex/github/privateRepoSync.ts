@@ -1,12 +1,13 @@
 "use node";
 
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import type { CommitPayload } from "../classification/botDetector";
 import { classifyCommit } from "../classification/botDetector";
 import type { CommitForStats } from "./statsComputation";
 import { computeStatsFromCommits } from "./statsComputation";
+import { computeRepoSinceMs, getUtcDayStart, getUtcWeekStart, toIsoTimestamp } from "./syncWindow";
 
 const PER_PAGE = 100;
 const MAX_REPOS = 200; // safety limit
@@ -14,8 +15,9 @@ const INTER_PAGE_DELAY_MS = 200; // gentle rate-limit pacing
 const INTER_REPO_DELAY_MS = 300;
 
 /**
- * Fetches the last 2 years of commits from ALL private repos for a user,
- * classifies them entirely IN MEMORY, then writes ONLY aggregate stats
+ * Fetches private commits from a configurable sync window (incremental by default,
+ * full 2-year window for full rebuild), classifies them entirely IN MEMORY,
+ * then writes ONLY aggregate stats
  * to `userPrivateDailyStats` and `userPrivateWeeklyStats`.
  *
  * ┌─────────────────────────────────────────────────────────────────┐
@@ -32,9 +34,34 @@ export const privateRepoSync = internalAction({
   args: {
     githubLogin: v.string(),
     githubToken: v.string(),
+    mode: v.optional(v.union(v.literal("incremental"), v.literal("full"))),
   },
-  handler: async (ctx, { githubLogin, githubToken }) => {
+  handler: async (ctx, { githubLogin, githubToken, mode = "incremental" }) => {
     try {
+      const existingSyncStatus = await ctx.runQuery(
+        api.queries.privateStats.getUserPrivateSyncStatus,
+        {
+          githubLogin,
+        }
+      );
+      const sinceMs = computeRepoSinceMs({
+        lastSyncedAt: existingSyncStatus?.lastSyncedAt,
+        forceFullResync: mode === "full",
+      });
+      const since = toIsoTimestamp(sinceMs);
+      const replaceFromDate = getUtcDayStart(sinceMs);
+      const replaceFromWeekStart = getUtcWeekStart(sinceMs);
+
+      console.log(
+        "[privateRepoSync] Starting sync",
+        JSON.stringify({
+          githubLogin,
+          mode,
+          sinceMs,
+          lastSyncedAt: existingSyncStatus?.lastSyncedAt ?? null,
+        })
+      );
+
       // 1. Fetch list of private repos
       const repos = await fetchPrivateRepos(githubToken);
 
@@ -58,7 +85,6 @@ export const privateRepoSync = internalAction({
       //    We accumulate commits AND report progress after each repo,
       //    so the frontend sees live "Repo 3/12 — 847 commits" updates.
       const allCommits: CommitForStats[] = [];
-      const since = getSinceDate();
       let processedRepos = 0;
 
       for (const repo of repos) {
@@ -111,6 +137,7 @@ export const privateRepoSync = internalAction({
           githubLogin,
           dailyStats: batch,
           isFirstBatch: i === 0,
+          replaceFromDate: mode === "incremental" ? replaceFromDate : undefined,
         });
       }
 
@@ -122,6 +149,7 @@ export const privateRepoSync = internalAction({
           githubLogin,
           weeklyStats: batch,
           isFirstBatch: i === 0,
+          replaceFromWeekStart: mode === "incremental" ? replaceFromWeekStart : undefined,
         });
       }
 
@@ -140,12 +168,6 @@ export const privateRepoSync = internalAction({
 });
 
 // ─── Helpers (all transient, nothing persisted) ─────────────────
-
-function getSinceDate(): string {
-  const twoYearsAgo = new Date();
-  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-  return twoYearsAgo.toISOString();
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

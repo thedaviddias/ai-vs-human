@@ -26,6 +26,7 @@ export default defineSchema({
     syncCommitsFetched: v.optional(v.number()), // running count, updated per page of 100 commits
     requestedAt: v.number(),
     pushedAt: v.optional(v.number()), // GitHub pushed_at timestamp — used to order sync queue (latest first)
+    forceFullResync: v.optional(v.boolean()),
     // Granular tool/bot breakdown — computed during sync while commits exist, persisted after cleanup
     toolBreakdown: v.optional(
       v.array(
@@ -117,6 +118,7 @@ export default defineSchema({
     .index("by_repo", ["repoId"])
     .index("by_repo_and_date", ["repoId", "authoredAt"])
     .index("by_sha", ["sha"])
+    .index("by_repo_and_sha", ["repoId", "sha"])
     .index("by_repo_and_classification", ["repoId", "classification"]),
 
   repoWeeklyStats: defineTable({

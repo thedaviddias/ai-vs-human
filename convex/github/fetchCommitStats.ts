@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
+import { getTwoYearFloorMs, toIsoTimestamp } from "./syncWindow";
 
 const GRAPHQL_ENDPOINT = "https://api.github.com/graphql";
 
@@ -33,13 +34,6 @@ query FetchCommitStats($owner: String!, $name: String!, $since: GitTimestamp!, $
   }
 }
 `;
-
-/** Same 2-year lookback window used by fetchCommits.ts */
-function getSinceDate(): string {
-  const twoYearsAgo = new Date();
-  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-  return twoYearsAgo.toISOString();
-}
 
 interface GraphQLResponse {
   data?: {
@@ -81,6 +75,7 @@ export const fetchCommitStats = internalAction({
     repoId: v.id("repos"),
     owner: v.string(),
     name: v.string(),
+    sinceMs: v.optional(v.number()),
     cursor: v.optional(v.string()),
     totalCommits: v.number(),
     pagesProcessed: v.optional(v.number()),
@@ -118,7 +113,8 @@ export const fetchCommitStats = internalAction({
       return;
     }
 
-    const since = getSinceDate();
+    const sinceMs = args.sinceMs ?? getTwoYearFloorMs();
+    const since = toIsoTimestamp(sinceMs);
 
     let response: Response;
     try {
@@ -182,6 +178,7 @@ export const fetchCommitStats = internalAction({
     }));
 
     await ctx.runMutation(internal.github.ingestCommits.batchUpdateLoc, {
+      repoId: args.repoId,
       updates,
     });
 
@@ -195,6 +192,7 @@ export const fetchCommitStats = internalAction({
           repoId: args.repoId,
           owner: args.owner,
           name: args.name,
+          sinceMs,
           cursor: history.pageInfo.endCursor,
           totalCommits: args.totalCommits,
           pagesProcessed: currentPage,
@@ -212,6 +210,7 @@ export const fetchCommitStats = internalAction({
         repoId: args.repoId,
         owner: args.owner,
         name: args.name,
+        sinceMs,
         cursor: history.pageInfo.endCursor,
         totalCommits: args.totalCommits,
         pagesProcessed: currentPage,

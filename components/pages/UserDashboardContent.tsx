@@ -26,10 +26,12 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Breadcrumbs } from "@/components/layout/Breadcrumbs";
 import { ShareButtons } from "@/components/sharing/ShareButtons";
 import { OwnerPageSkeleton } from "@/components/skeletons/PageSkeletons";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { NotificationModal } from "@/components/ui/NotificationModal";
 import { PrivateDataBadge } from "@/components/ui/PrivateDataBadge";
 import { PrivateRepoCard } from "@/components/ui/PrivateRepoCard";
 import { SelfReportCard } from "@/components/ui/SelfReportCard";
+import { UnknownAiIdentitiesModal } from "@/components/ui/UnknownAiIdentitiesModal";
 import { UnknownBotIdentitiesModal } from "@/components/ui/UnknownBotIdentitiesModal";
 import { api } from "@/convex/_generated/api";
 import {
@@ -48,6 +50,7 @@ import { shouldAutoTriggerPrivateSync } from "@/lib/privateSyncTrigger";
 import { shouldShowPrivateData } from "@/lib/privateVisibility";
 import { getSyncBadgeLabel, getSyncStageLabel } from "@/lib/syncProgress";
 import { trackEvent } from "@/lib/tracking";
+import { extractUnknownAiIdentities } from "@/lib/unknownAi";
 import { extractUnknownBotIdentities } from "@/lib/unknownBots";
 import { createUserAutoAnalyzePlan } from "@/lib/userAutoAnalyzePlan";
 import { formatPercentage } from "@/lib/utils";
@@ -190,7 +193,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
 
     if (shouldTrigger) {
       hasAutoTriggeredPrivateSync.current = true;
-      void requestPrivateSync();
+      void requestPrivateSync({ mode: "incremental" });
     }
   }, [isOwnProfile, session, privateSyncStatus, requestPrivateSync]);
 
@@ -284,35 +287,56 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     parseAsStringLiteral(chartModes).withDefault("commits").withOptions({ scroll: false })
   );
 
-  // Resync: allows user to re-trigger analysis with latest classification
-  const [isResyncing, setIsResyncing] = useState(false);
+  // Sync actions
+  const [isSyncLatestLoading, setIsSyncLatestLoading] = useState(false);
+  const [isFullRebuildLoading, setIsFullRebuildLoading] = useState(false);
+  const [showFullRebuildConfirm, setShowFullRebuildConfirm] = useState(false);
   const [resyncError, setResyncError] = useState<string | null>(null);
 
-  const handleResync = useCallback(async () => {
+  const toAnalyzeRepos = useCallback(
+    () =>
+      githubRepos.map((repo) => ({
+        owner: owner,
+        name: repo.name,
+        ...(repo.pushed_at ? { pushedAt: new Date(repo.pushed_at).getTime() } : {}),
+      })),
+    [owner, githubRepos]
+  );
+
+  const handleSyncLatest = useCallback(async () => {
     trackEvent("resync", { owner: owner });
-    setIsResyncing(true);
+    setIsSyncLatestLoading(true);
     setResyncError(null);
     try {
-      // Reset existing repos and queue analysis in one protected server flow.
-      await postJson("/api/analyze/resync-user", {
-        owner: owner,
-        repos: githubRepos.map((repo) => ({
-          owner: owner,
-          name: repo.name,
-          ...(repo.pushed_at ? { pushedAt: new Date(repo.pushed_at).getTime() } : {}),
-        })),
-      });
+      await postJson("/api/analyze/user", { repos: toAnalyzeRepos() });
     } catch (error) {
-      logger.error("Failed to re-sync user analysis", error, { owner: owner });
+      logger.error("Failed to sync latest user analysis", error, { owner: owner });
       setResyncError(
-        error instanceof Error ? error.message : "Failed to re-sync. Please try again."
+        error instanceof Error ? error.message : "Failed to sync latest. Please try again."
       );
     } finally {
-      // The button stays in loading state until syncing actually starts
-      // (the reactive query will show syncing status)
-      setTimeout(() => setIsResyncing(false), 1000);
+      setTimeout(() => setIsSyncLatestLoading(false), 1000);
     }
-  }, [owner, githubRepos]);
+  }, [owner, toAnalyzeRepos]);
+
+  const handleFullRebuild = useCallback(async () => {
+    trackEvent("resync", { owner: owner });
+    setIsFullRebuildLoading(true);
+    setResyncError(null);
+    try {
+      await postJson("/api/analyze/resync-user", {
+        owner: owner,
+        repos: toAnalyzeRepos(),
+      });
+    } catch (error) {
+      logger.error("Failed to start full rebuild for user analysis", error, { owner: owner });
+      setResyncError(
+        error instanceof Error ? error.message : "Failed to start full rebuild. Please try again."
+      );
+    } finally {
+      setTimeout(() => setIsFullRebuildLoading(false), 1000);
+    }
+  }, [owner, toAnalyzeRepos]);
 
   // Phase 3: Reactive queries for sync progress + chart data
   // Build fullNames from `owner` (URL param) + repo name so they match the
@@ -474,6 +498,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     return mergeDetailedBreakdowns(multiRepoDetailedBreakdown, privateBreakdown);
   }, [multiRepoDetailedBreakdown, privateWeeklyStats]);
 
+  const unknownAiIdentities = useMemo(
+    () => extractUnknownAiIdentities(mergedBreakdown?.toolBreakdown),
+    [mergedBreakdown]
+  );
+
   const unknownBotIdentities = useMemo(
     () => extractUnknownBotIdentities(mergedBreakdown?.botBreakdown),
     [mergedBreakdown]
@@ -625,6 +654,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   // Notification logic
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [isUnknownAiModalOpen, setIsUnknownAiModalOpen] = useState(false);
   const [isUnknownBotModalOpen, setIsUnknownBotModalOpen] = useState(false);
   const [wantsNotification, setWantsNotification] = useState(false);
   const prevSyncingRef = useRef(isSyncInProgress);
@@ -783,8 +813,13 @@ export function UserDashboardContent({ owner }: { owner: string }) {
       <div className="absolute right-0 top-0 flex items-center gap-2 sm:right-4 sm:top-4 z-10">
         <button
           type="button"
-          onClick={handleResync}
-          disabled={isResyncing || isSyncInProgress || githubRepos.length === 0}
+          onClick={handleSyncLatest}
+          disabled={
+            isSyncLatestLoading ||
+            isFullRebuildLoading ||
+            isSyncInProgress ||
+            githubRepos.length === 0
+          }
           title={
             githubRepos.length === 0
               ? "GitHub repos not loaded — try refreshing the page"
@@ -792,8 +827,27 @@ export function UserDashboardContent({ owner }: { owner: string }) {
           }
           className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-neutral-500 transition-all hover:bg-neutral-900 hover:text-neutral-300 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${isSyncInProgress ? "animate-spin" : ""}`} />
-          Re-sync
+          <RefreshCw className={`h-3.5 w-3.5 ${isSyncLatestLoading ? "animate-spin" : ""}`} />
+          Sync latest
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowFullRebuildConfirm(true)}
+          disabled={
+            isSyncLatestLoading ||
+            isFullRebuildLoading ||
+            isSyncInProgress ||
+            githubRepos.length === 0
+          }
+          title={
+            githubRepos.length === 0
+              ? "GitHub repos not loaded — try refreshing the page"
+              : "Reprocess full 2-year history"
+          }
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-500 transition-all hover:bg-neutral-900 hover:text-amber-300 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFullRebuildLoading ? "animate-spin" : ""}`} />
+          Full rebuild
         </button>
         {isActualOwner && !isPublicPreview && (
           <button
@@ -892,7 +946,10 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               await updatePrivateVisibility({ showPrivateDataPublicly: show });
             }}
             onResync={async () => {
-              await requestPrivateSync();
+              await requestPrivateSync({ mode: "incremental" });
+            }}
+            onFullRebuild={async () => {
+              await requestPrivateSync({ mode: "full" });
             }}
             totalRepos={privateSyncStatus?.totalRepos}
             processedRepos={privateSyncStatus?.processedRepos}
@@ -977,6 +1034,24 @@ export function UserDashboardContent({ owner }: { owner: string }) {
         isOpen={isNotificationModalOpen}
         onClose={() => setIsNotificationModalOpen(false)}
         onConfirm={() => setWantsNotification(true)}
+      />
+      <ConfirmModal
+        isOpen={showFullRebuildConfirm}
+        onClose={() => setShowFullRebuildConfirm(false)}
+        onConfirm={() => {
+          setShowFullRebuildConfirm(false);
+          void handleFullRebuild();
+        }}
+        title="Full Rebuild Public Data"
+        description="This reprocesses your full 2-year public history. Use Sync latest for faster incremental updates."
+        confirmLabel="Start Full Rebuild"
+        cancelLabel="Cancel"
+        isLoading={isFullRebuildLoading}
+      />
+      <UnknownAiIdentitiesModal
+        isOpen={isUnknownAiModalOpen}
+        onClose={() => setIsUnknownAiModalOpen(false)}
+        tools={unknownAiIdentities}
       />
       <UnknownBotIdentitiesModal
         isOpen={isUnknownBotModalOpen}
@@ -1095,7 +1170,48 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                 <AIToolBreakdown
                   toolBreakdown={mergedBreakdown.toolBreakdown}
                   viewMode={userSummary.hasLocData ? chartMode : "commits"}
+                  excludeUnknownTools={true}
                 />
+              </ErrorBoundary>
+            )}
+
+            {unknownAiIdentities.length > 0 && (
+              <ErrorBoundary level="section">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-sm font-bold uppercase tracking-widest text-neutral-500">
+                      Unknown AI Identities
+                    </h3>
+                    <div className="h-px flex-1 bg-neutral-800/50" />
+                  </div>
+                  <p className="text-xs text-neutral-500">
+                    These AI identities could not be matched to a known tool.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {unknownAiIdentities.map((tool) => (
+                      <button
+                        type="button"
+                        key={tool.key}
+                        onClick={() => setIsUnknownAiModalOpen(true)}
+                        className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900/60"
+                      >
+                        <div className="truncate text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                          {tool.label}
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          {tool.commits.toLocaleString()}
+                          <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">
+                            Commits
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-neutral-500">
+                          {tool.additions.toLocaleString()} lines
+                        </div>
+                        <div className="mt-1 truncate text-[11px] text-neutral-600">{tool.key}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </ErrorBoundary>
             )}
 

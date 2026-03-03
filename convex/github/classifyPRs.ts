@@ -19,6 +19,7 @@ import {
 } from "../classification/prAttribution";
 import { extractRateLimitInfo, getGitHubHeaders } from "./githubApi";
 import { computeStatsFromCommits } from "./statsComputation";
+import { getTwoYearFloorMs } from "./syncWindow";
 
 /** Maximum number of individual PR fetches per repo to cap API usage. */
 const MAX_PR_FETCHES_PER_REPO = 50;
@@ -222,10 +223,11 @@ export const classifyPRs = internalAction({
       prAttribution,
     });
 
-    // 6. Clean up individual commits — stats are now aggregated,
-    // GitHub remains the source of truth for raw commit data
-    await ctx.runMutation(internal.github.ingestCommits.deleteRepoCommits, {
+    // 6. Keep a rolling 2-year commit ledger for incremental sync correctness.
+    // Older commits are pruned to bound storage.
+    await ctx.runMutation(internal.github.ingestCommits.deleteRepoCommitsBefore, {
       repoId: args.repoId,
+      olderThanMs: getTwoYearFloorMs(),
     });
 
     // 7. Mark synced and conditionally recompute global stats.

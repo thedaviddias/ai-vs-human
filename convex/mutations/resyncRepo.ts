@@ -83,7 +83,18 @@ export const resyncRepo = mutation({
       syncError: undefined,
       syncStage: undefined,
       syncCommitsFetched: undefined,
+      forceFullResync: true,
+      requestedAt: Date.now(),
     });
+
+    console.log(
+      "[resyncRepo] Full rebuild queued",
+      JSON.stringify({
+        repoId: repo._id,
+        fullName,
+        previousStatus: repo.syncStatus,
+      })
+    );
 
     // If no other repo for this owner is currently syncing, start immediately
     const ownerSyncing = await ctx.db
