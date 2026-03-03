@@ -16,6 +16,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { HumanAiBadges } from "@/components/badges/HumanAiBadges";
 import { UserCard } from "@/components/cards/UserCard";
 import { AIToolBreakdown } from "@/components/charts/AIToolBreakdown";
@@ -108,6 +109,45 @@ const chartModes = ["commits", "loc"] as const;
 const repoSortModes = ["latest", "stars"] as const;
 const viewModes = ["owner", "public"] as const;
 
+interface AnalyzeQueueResult {
+  fullName: string;
+  status: string;
+  existing: boolean;
+  queued?: boolean;
+  reason?:
+    | "new_repo"
+    | "error_retry"
+    | "changed"
+    | "unchanged"
+    | "already_pending"
+    | "already_syncing"
+    | "already_completed"
+    | string;
+}
+
+interface ResyncUserResponse {
+  reset: number;
+  retryAfterSeconds: number;
+  queued: number;
+  results: AnalyzeQueueResult[];
+}
+
+function summarizeQueueResults(results: AnalyzeQueueResult[]) {
+  const queuedNowCount = results.filter(
+    (r) => r.queued === true || (r.status === "pending" && r.existing === false)
+  ).length;
+  const unchangedCount = results.filter((r) => r.reason === "unchanged").length;
+  const alreadyPendingCount = results.filter((r) => r.reason === "already_pending").length;
+  const alreadySyncingCount = results.filter((r) => r.reason === "already_syncing").length;
+
+  return {
+    queuedNowCount,
+    unchangedCount,
+    alreadyPendingCount,
+    alreadySyncingCount,
+  };
+}
+
 export function UserDashboardContent({ owner }: { owner: string }) {
   // Auth: detect if the viewer is looking at their own profile.
   // We use `getMyGitHubLogin` (returns GitHub login from the `username` field)
@@ -172,6 +212,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   // Without this, the Human/AI/Bot percentages only reflect public repos.
   const privateWeeklyStats = useQuery(
     api.queries.privateStats.getUserPrivateWeeklyStats,
+    showPrivateToViewer && privateSyncStatus?.includesPrivateData ? { githubLogin: owner } : "skip"
+  );
+
+  const privateDetailedBreakdown = useQuery(
+    api.queries.privateStats.getUserPrivateDetailedBreakdown,
     showPrivateToViewer && privateSyncStatus?.includesPrivateData ? { githubLogin: owner } : "skip"
   );
 
@@ -308,35 +353,69 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     setIsSyncLatestLoading(true);
     setResyncError(null);
     try {
-      await postJson("/api/analyze/user", { repos: toAnalyzeRepos() });
+      const results = await postJson<AnalyzeQueueResult[]>("/api/analyze/user", {
+        repos: toAnalyzeRepos(),
+      });
+      const summary = summarizeQueueResults(results);
+      if (summary.queuedNowCount > 0) {
+        toast.success(
+          `Sync started for ${summary.queuedNowCount} repo${summary.queuedNowCount === 1 ? "" : "s"}.`,
+          {
+            description:
+              summary.unchangedCount > 0
+                ? `${summary.unchangedCount} repo${summary.unchangedCount === 1 ? "" : "s"} had no new pushes.`
+                : undefined,
+          }
+        );
+      } else if (summary.alreadyPendingCount > 0 || summary.alreadySyncingCount > 0) {
+        toast.info("Sync already in progress.", {
+          description: "Current queue is still running for your repositories.",
+        });
+      } else {
+        toast.info("Nothing new to sync.", {
+          description: "No changes were detected in your tracked top-20 public repos.",
+        });
+      }
     } catch (error) {
       logger.error("Failed to sync latest user analysis", error, { owner: owner });
-      setResyncError(
-        error instanceof Error ? error.message : "Failed to sync latest. Please try again."
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to sync latest. Please try again.";
+      setResyncError(message);
+      toast.error("Sync latest failed.", { description: message });
     } finally {
       setTimeout(() => setIsSyncLatestLoading(false), 1000);
     }
   }, [owner, toAnalyzeRepos]);
 
   const handleFullRebuild = useCallback(async () => {
+    if (!isOwnProfile) {
+      const message = "Full rebuild is only available on your own profile page.";
+      setResyncError(message);
+      toast.error("Action blocked.", { description: message });
+      return;
+    }
+
     trackEvent("resync", { owner: owner });
     setIsFullRebuildLoading(true);
     setResyncError(null);
     try {
-      await postJson("/api/analyze/resync-user", {
+      const result = await postJson<ResyncUserResponse>("/api/analyze/resync-user", {
         owner: owner,
         repos: toAnalyzeRepos(),
       });
+      toast.success("Full rebuild started.", {
+        description: `Queued ${result.queued} repo${result.queued === 1 ? "" : "s"} for full reprocessing.`,
+      });
     } catch (error) {
       logger.error("Failed to start full rebuild for user analysis", error, { owner: owner });
-      setResyncError(
-        error instanceof Error ? error.message : "Failed to start full rebuild. Please try again."
-      );
+      const message =
+        error instanceof Error ? error.message : "Failed to start full rebuild. Please try again.";
+      setResyncError(message);
+      toast.error("Full rebuild failed.", { description: message });
     } finally {
       setTimeout(() => setIsFullRebuildLoading(false), 1000);
     }
-  }, [owner, toAnalyzeRepos]);
+  }, [isOwnProfile, owner, toAnalyzeRepos]);
 
   // Phase 3: Reactive queries for sync progress + chart data
   // Build fullNames from `owner` (URL param) + repo name so they match the
@@ -490,13 +569,25 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   // granular keys like "coderabbit"). Private weekly stats add the standard 7 tools.
   const mergedBreakdown = useMemo(() => {
     if (!multiRepoDetailedBreakdown) return null;
-    if (!privateWeeklyStats || privateWeeklyStats.length === 0) return multiRepoDetailedBreakdown;
+    const hasPrivateWeeklyStats = !!privateWeeklyStats && privateWeeklyStats.length > 0;
+    const hasPrivateDetailedBreakdown =
+      !!privateDetailedBreakdown &&
+      (privateDetailedBreakdown.toolBreakdown.length > 0 ||
+        privateDetailedBreakdown.botBreakdown.length > 0);
 
-    const privateBreakdown = buildBreakdownFromWeeklyStats(
-      privateWeeklyStats as Array<Record<string, number | string | undefined>>
-    );
+    if (!hasPrivateWeeklyStats && !hasPrivateDetailedBreakdown) return multiRepoDetailedBreakdown;
+
+    const privateBreakdown = hasPrivateDetailedBreakdown
+      ? {
+          toolBreakdown: privateDetailedBreakdown.toolBreakdown,
+          botBreakdown: privateDetailedBreakdown.botBreakdown,
+        }
+      : buildBreakdownFromWeeklyStats(
+          privateWeeklyStats as Array<Record<string, number | string | undefined>>
+        );
+
     return mergeDetailedBreakdowns(multiRepoDetailedBreakdown, privateBreakdown);
-  }, [multiRepoDetailedBreakdown, privateWeeklyStats]);
+  }, [multiRepoDetailedBreakdown, privateDetailedBreakdown, privateWeeklyStats]);
 
   const unknownAiIdentities = useMemo(
     () => extractUnknownAiIdentities(mergedBreakdown?.toolBreakdown),
@@ -506,6 +597,22 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   const unknownBotIdentities = useMemo(
     () => extractUnknownBotIdentities(mergedBreakdown?.botBreakdown),
     [mergedBreakdown]
+  );
+
+  const namedUnknownBotIdentities = useMemo(
+    () =>
+      unknownBotIdentities.filter(
+        (bot) => bot.key !== "other-bot" && bot.key !== "bot-unspecified"
+      ),
+    [unknownBotIdentities]
+  );
+
+  const aggregateUnknownBotCommits = useMemo(
+    () =>
+      unknownBotIdentities
+        .filter((bot) => bot.key === "other-bot" || bot.key === "bot-unspecified")
+        .reduce((sum, bot) => sum + bot.commits, 0),
+    [unknownBotIdentities]
   );
 
   const repoPercentagesById = useMemo(() => {
@@ -830,25 +937,27 @@ export function UserDashboardContent({ owner }: { owner: string }) {
           <RefreshCw className={`h-3.5 w-3.5 ${isSyncLatestLoading ? "animate-spin" : ""}`} />
           Sync latest
         </button>
-        <button
-          type="button"
-          onClick={() => setShowFullRebuildConfirm(true)}
-          disabled={
-            isSyncLatestLoading ||
-            isFullRebuildLoading ||
-            isSyncInProgress ||
-            githubRepos.length === 0
-          }
-          title={
-            githubRepos.length === 0
-              ? "GitHub repos not loaded — try refreshing the page"
-              : "Reprocess full 2-year history"
-          }
-          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-500 transition-all hover:bg-neutral-900 hover:text-amber-300 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isFullRebuildLoading ? "animate-spin" : ""}`} />
-          Full rebuild
-        </button>
+        {isOwnProfile && (
+          <button
+            type="button"
+            onClick={() => setShowFullRebuildConfirm(true)}
+            disabled={
+              isSyncLatestLoading ||
+              isFullRebuildLoading ||
+              isSyncInProgress ||
+              githubRepos.length === 0
+            }
+            title={
+              githubRepos.length === 0
+                ? "GitHub repos not loaded — try refreshing the page"
+                : "Reprocess full 2-year history"
+            }
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-amber-500 transition-all hover:bg-neutral-900 hover:text-amber-300 active:scale-95 disabled:opacity-50 sm:gap-2 sm:px-3 sm:py-2"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFullRebuildLoading ? "animate-spin" : ""}`} />
+            Full rebuild
+          </button>
+        )}
         {isActualOwner && !isPublicPreview && (
           <button
             type="button"
@@ -942,14 +1051,46 @@ export function UserDashboardContent({ owner }: { owner: string }) {
             syncError={privateSyncStatus?.syncError}
             lastSyncedAt={privateSyncStatus?.lastSyncedAt}
             showPrivateDataPublicly={cachedProfile?.showPrivateDataPublicly}
-            onToggleVisibility={async (show) => {
-              await updatePrivateVisibility({ showPrivateDataPublicly: show });
+            onToggleVisibility={(show) => {
+              void updatePrivateVisibility({ showPrivateDataPublicly: show })
+                .then(() => {
+                  toast.success(
+                    show
+                      ? "Private data is now visible to visitors."
+                      : "Private data is now hidden from visitors."
+                  );
+                })
+                .catch((error) => {
+                  const message =
+                    error instanceof Error ? error.message : "Failed to update visibility setting.";
+                  toast.error("Failed to update private visibility.", { description: message });
+                });
             }}
             onResync={async () => {
-              await requestPrivateSync({ mode: "incremental" });
+              try {
+                await requestPrivateSync({ mode: "incremental" });
+                toast.success("Private sync started.", {
+                  description: "Refreshing the latest private activity window.",
+                });
+              } catch (error) {
+                const message =
+                  error instanceof Error ? error.message : "Failed to start private sync.";
+                toast.error("Private sync failed.", { description: message });
+                throw error;
+              }
             }}
             onFullRebuild={async () => {
-              await requestPrivateSync({ mode: "full" });
+              try {
+                await requestPrivateSync({ mode: "full" });
+                toast.success("Private full rebuild started.", {
+                  description: "Reprocessing full 2-year private history.",
+                });
+              } catch (error) {
+                const message =
+                  error instanceof Error ? error.message : "Failed to start private full rebuild.";
+                toast.error("Private full rebuild failed.", { description: message });
+                throw error;
+              }
             }}
             totalRepos={privateSyncStatus?.totalRepos}
             processedRepos={privateSyncStatus?.processedRepos}
@@ -1035,19 +1176,21 @@ export function UserDashboardContent({ owner }: { owner: string }) {
         onClose={() => setIsNotificationModalOpen(false)}
         onConfirm={() => setWantsNotification(true)}
       />
-      <ConfirmModal
-        isOpen={showFullRebuildConfirm}
-        onClose={() => setShowFullRebuildConfirm(false)}
-        onConfirm={() => {
-          setShowFullRebuildConfirm(false);
-          void handleFullRebuild();
-        }}
-        title="Full Rebuild Public Data"
-        description="This reprocesses your full 2-year public history. Use Sync latest for faster incremental updates."
-        confirmLabel="Start Full Rebuild"
-        cancelLabel="Cancel"
-        isLoading={isFullRebuildLoading}
-      />
+      {isOwnProfile && (
+        <ConfirmModal
+          isOpen={showFullRebuildConfirm}
+          onClose={() => setShowFullRebuildConfirm(false)}
+          onConfirm={() => {
+            setShowFullRebuildConfirm(false);
+            void handleFullRebuild();
+          }}
+          title="Full Rebuild Public Data"
+          description="This reprocesses your full 2-year public history. Use Sync latest for faster incremental updates."
+          confirmLabel="Start Full Rebuild"
+          cancelLabel="Cancel"
+          isLoading={isFullRebuildLoading}
+        />
+      )}
       <UnknownAiIdentitiesModal
         isOpen={isUnknownAiModalOpen}
         onClose={() => setIsUnknownAiModalOpen(false)}
@@ -1222,7 +1365,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               </ErrorBoundary>
             )}
 
-            {unknownBotIdentities.length > 0 && (
+            {(namedUnknownBotIdentities.length > 0 || aggregateUnknownBotCommits > 0) && (
               <ErrorBoundary level="section">
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
@@ -1234,27 +1377,47 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                   <p className="text-xs text-neutral-500">
                     These bot identities could not be matched to a known automation tool.
                   </p>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {unknownBotIdentities.map((bot) => (
+                  {aggregateUnknownBotCommits > 0 && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
+                      <p>
+                        {aggregateUnknownBotCommits.toLocaleString()} commit
+                        {aggregateUnknownBotCommits === 1 ? "" : "s"} are still in an aggregate
+                        unknown bucket with no concrete identity string available.
+                      </p>
                       <button
                         type="button"
-                        key={bot.key}
                         onClick={() => setIsUnknownBotModalOpen(true)}
-                        className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900/60"
+                        className="mt-2 text-xs font-semibold underline underline-offset-2 hover:text-amber-100"
                       >
-                        <div className="truncate text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                          {bot.label}
-                        </div>
-                        <div className="text-lg font-bold text-white">
-                          {bot.commits.toLocaleString()}
-                          <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">
-                            Commits
-                          </span>
-                        </div>
-                        <div className="mt-1 truncate text-[11px] text-neutral-600">{bot.key}</div>
+                        Open details
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  )}
+                  {namedUnknownBotIdentities.length > 0 && (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {namedUnknownBotIdentities.map((bot) => (
+                        <button
+                          type="button"
+                          key={bot.key}
+                          onClick={() => setIsUnknownBotModalOpen(true)}
+                          className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900/60"
+                        >
+                          <div className="truncate text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                            {bot.label}
+                          </div>
+                          <div className="text-lg font-bold text-white">
+                            {bot.commits.toLocaleString()}
+                            <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">
+                              Commits
+                            </span>
+                          </div>
+                          <div className="mt-1 truncate text-[11px] text-neutral-600">
+                            {bot.key}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </ErrorBoundary>
             )}

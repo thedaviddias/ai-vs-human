@@ -8,6 +8,7 @@ import { resolveGitHubLogin } from "../lib/authHelpers";
  * After this runs:
  * - All userPrivateDailyStats for this user are deleted
  * - All userPrivateWeeklyStats for this user are deleted
+ * - Any private detailed tool/bot breakdown is deleted
  * - The userPrivateSyncStatus is reset to "idle"
  * - The profile's hasPrivateData flag is cleared
  *
@@ -47,6 +48,16 @@ export const unlinkPrivateData = mutation({
       .collect();
 
     for (const row of weeklyStats) {
+      await ctx.db.delete(row._id);
+    }
+
+    // Delete private detailed breakdown
+    const detailedBreakdowns = await ctx.db
+      .query("userPrivateDetailedBreakdown")
+      .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
+      .collect();
+
+    for (const row of detailedBreakdowns) {
       await ctx.db.delete(row._id);
     }
 

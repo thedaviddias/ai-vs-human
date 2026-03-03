@@ -130,6 +130,44 @@ export const replacePrivateWeeklyStats = internalMutation({
   },
 });
 
+export const replacePrivateDetailedBreakdown = internalMutation({
+  args: {
+    githubLogin: v.string(),
+    toolBreakdown: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        commits: v.number(),
+        additions: v.number(),
+      })
+    ),
+    botBreakdown: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        commits: v.number(),
+      })
+    ),
+  },
+  handler: async (ctx, { githubLogin, toolBreakdown, botBreakdown }) => {
+    const existingRows = await ctx.db
+      .query("userPrivateDetailedBreakdown")
+      .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
+      .collect();
+
+    for (const row of existingRows) {
+      await ctx.db.delete(row._id);
+    }
+
+    await ctx.db.insert("userPrivateDetailedBreakdown", {
+      githubLogin,
+      toolBreakdown,
+      botBreakdown,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 /**
  * Updates progress counters during private sync.
  * Called after each repo is processed so the UI can show live progress

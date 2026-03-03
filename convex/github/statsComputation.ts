@@ -36,6 +36,9 @@ export interface CommitForStats {
   authorLogin?: string;
   authorEmail?: string;
   authorName?: string;
+  message?: string;
+  fullMessage?: string;
+  coAuthors?: string[];
 }
 
 export interface WeeklyStatEntry {

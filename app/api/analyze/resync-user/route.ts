@@ -1,6 +1,7 @@
 import { fetchMutation } from "convex/nextjs";
 import { NextResponse } from "next/server";
 import { api } from "@/convex/_generated/api";
+import { getAuthServer } from "@/lib/auth-server";
 import { logger } from "@/lib/logger";
 import { getAnalyzeApiKey } from "@/lib/server/analyzeApiKey";
 import { requireHumanRequest } from "@/lib/server/botProtection";
@@ -72,6 +73,32 @@ export async function POST(request: Request) {
   const owner = body.owner?.trim();
   if (!owner) {
     return NextResponse.json({ error: "owner is required" }, { status: 400 });
+  }
+
+  let requesterLogin: string | null = null;
+  try {
+    requesterLogin = await getAuthServer().fetchAuthQuery(api.auth.getMyGitHubLogin, {});
+  } catch (error) {
+    logger.error("Failed to resolve authenticated user for full rebuild", error, { owner });
+    return NextResponse.json({ error: "Failed to verify authenticated user" }, { status: 500 });
+  }
+
+  if (!requesterLogin) {
+    return NextResponse.json(
+      { error: "You must be signed in to run full rebuild." },
+      { status: 401 }
+    );
+  }
+
+  if (requesterLogin.toLowerCase() !== owner.toLowerCase()) {
+    logger.warn("Rejected full rebuild for non-owner request", {
+      owner,
+      requesterLogin,
+    });
+    return NextResponse.json(
+      { error: "Full rebuild is only available for your own profile page." },
+      { status: 403 }
+    );
   }
 
   const repos = body.repos;

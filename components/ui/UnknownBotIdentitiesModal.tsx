@@ -19,6 +19,14 @@ export function UnknownBotIdentitiesModal({
   onClose,
   bots,
 }: UnknownBotIdentitiesModalProps) {
+  const aggregateUnknownCommits = bots
+    .filter((bot) => bot.key === "other-bot" || bot.key === "bot-unspecified")
+    .reduce((sum, bot) => sum + bot.commits, 0);
+
+  const namedUnknownBots = bots.filter(
+    (bot) => bot.key !== "other-bot" && bot.key !== "bot-unspecified"
+  );
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -63,7 +71,7 @@ export function UnknownBotIdentitiesModal({
         </div>
 
         <div className="mt-6 max-h-[60vh] space-y-2 overflow-y-auto pr-1">
-          {bots.map((bot) => (
+          {namedUnknownBots.map((bot) => (
             <div
               key={`${bot.key}-${bot.label}`}
               className="rounded-xl border border-neutral-800 bg-black/30 px-4 py-3"
@@ -84,6 +92,14 @@ export function UnknownBotIdentitiesModal({
               </div>
             </div>
           ))}
+
+          {aggregateUnknownCommits > 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+              {aggregateUnknownCommits.toLocaleString()} commit
+              {aggregateUnknownCommits === 1 ? "" : "s"} are in a legacy aggregate bucket with no
+              raw identity string preserved. Run a full resync to expand future unknown bot names.
+            </div>
+          )}
         </div>
       </div>
     </div>

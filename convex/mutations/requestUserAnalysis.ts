@@ -37,15 +37,28 @@ export const requestUserAnalysis = mutation({
         const patch: Record<string, unknown> = {};
         let repoChanged = false;
         let shouldQueue = false;
+        let reason:
+          | "error_retry"
+          | "changed"
+          | "unchanged"
+          | "already_pending"
+          | "already_syncing"
+          | "already_completed" = "already_completed";
 
         if (existing.syncStatus === "error") {
           shouldQueue = true;
+          reason = "error_retry";
         } else if (existing.syncStatus === "synced") {
           repoChanged = shouldQueueIncrementalRepo({
             incomingPushedAt: repo.pushedAt,
             storedPushedAt: existing.pushedAt,
           });
           shouldQueue = repoChanged;
+          reason = repoChanged ? "changed" : "unchanged";
+        } else if (existing.syncStatus === "pending") {
+          reason = "already_pending";
+        } else if (existing.syncStatus === "syncing") {
+          reason = "already_syncing";
         }
 
         if (shouldQueue) {
@@ -73,6 +86,7 @@ export const requestUserAnalysis = mutation({
             syncStatus: existing.syncStatus,
             repoChanged,
             shouldQueue,
+            reason,
             incomingPushedAt: repo.pushedAt ?? null,
             storedPushedAt: existing.pushedAt ?? null,
           })
@@ -82,6 +96,8 @@ export const requestUserAnalysis = mutation({
           fullName,
           status: (patch.syncStatus as string | undefined) ?? existing.syncStatus,
           existing: true,
+          queued: shouldQueue,
+          reason,
         });
         continue;
       }
@@ -109,7 +125,13 @@ export const requestUserAnalysis = mutation({
         })
       );
 
-      results.push({ fullName, status: "pending" as const, existing: false });
+      results.push({
+        fullName,
+        status: "pending" as const,
+        existing: false,
+        queued: true,
+        reason: "new_repo" as const,
+      });
     }
 
     // Always ensure at least one pending repo is being processed.

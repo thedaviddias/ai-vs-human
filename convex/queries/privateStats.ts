@@ -43,3 +43,22 @@ export const getUserPrivateWeeklyStats = query({
       .collect();
   },
 });
+
+/**
+ * Returns private detailed tool/bot breakdown for a user.
+ *
+ * This is aggregated identity-level data (tool/bot keys + commit counts),
+ * with no repo names or commit content.
+ */
+export const getUserPrivateDetailedBreakdown = query({
+  args: { githubLogin: v.string() },
+  handler: async (ctx, { githubLogin }) => {
+    await requirePrivateDataAccess(ctx, githubLogin);
+    return (
+      (await ctx.db
+        .query("userPrivateDetailedBreakdown")
+        .withIndex("by_login", (q) => q.eq("githubLogin", githubLogin))
+        .first()) ?? null
+    );
+  },
+});

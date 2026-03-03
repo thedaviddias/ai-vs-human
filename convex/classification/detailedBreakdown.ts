@@ -1,4 +1,3 @@
-import type { Doc } from "../_generated/dataModel";
 import {
   AI_REVIEW_DETAILED_PATTERNS,
   UNKNOWN_AI_KEY,
@@ -9,7 +8,16 @@ import {
 import type { Classification } from "./botDetector";
 import { CO_AUTHOR_AI_PATTERNS } from "./knownBots";
 
-type CommitDoc = Doc<"commits">;
+interface BreakdownCommit {
+  classification: string;
+  additions?: number;
+  authorLogin?: string | null;
+  authorName?: string | null;
+  authorEmail?: string | null;
+  message?: string | null;
+  fullMessage?: string | null;
+  coAuthors?: string[] | null;
+}
 
 export interface DetailedAiToolStat {
   key: string;
@@ -132,13 +140,13 @@ function normalizeIdentity(source: string): { slug: string; label: string } | nu
   return { slug, label };
 }
 
-function extractPreferredIdentity(commit: CommitDoc): string | null {
+function extractPreferredIdentity(commit: BreakdownCommit): string | null {
   return (
     commit.authorLogin ?? commit.authorName ?? commit.authorEmail ?? commit.coAuthors?.[0] ?? null
   );
 }
 
-function buildHaystack(commit: CommitDoc): string {
+function buildHaystack(commit: BreakdownCommit): string {
   const parts = [
     commit.authorLogin,
     commit.authorName,
@@ -151,7 +159,7 @@ function buildHaystack(commit: CommitDoc): string {
 }
 
 function classifyCommitForBreakdown(
-  commit: CommitDoc
+  commit: BreakdownCommit
 ): { kind: "ai"; match: DetailedMatch } | { kind: "automation"; match: DetailedMatch } | null {
   const classification = commit.classification as Classification;
   if (classification === "human") {
@@ -230,7 +238,7 @@ function classifyCommitForBreakdown(
   return null;
 }
 
-export function buildDetailedBreakdowns(commits: CommitDoc[]): {
+export function buildDetailedBreakdowns(commits: BreakdownCommit[]): {
   toolBreakdown: DetailedAiToolStat[];
   botBreakdown: DetailedBotToolStat[];
 } {

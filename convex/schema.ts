@@ -320,6 +320,26 @@ export default defineSchema({
     .index("by_login", ["githubLogin"])
     .index("by_login_and_week", ["githubLogin", "weekStart"]),
 
+  userPrivateDetailedBreakdown: defineTable({
+    githubLogin: v.string(),
+    toolBreakdown: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        commits: v.number(),
+        additions: v.number(),
+      })
+    ),
+    botBreakdown: v.array(
+      v.object({
+        key: v.string(),
+        label: v.string(),
+        commits: v.number(),
+      })
+    ),
+    updatedAt: v.number(),
+  }).index("by_login", ["githubLogin"]),
+
   userPrivateSyncStatus: defineTable({
     githubLogin: v.string(),
     syncStatus: v.union(

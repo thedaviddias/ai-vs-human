@@ -16,7 +16,7 @@ function requireEnv(name: string, value: string | undefined): string {
   return value;
 }
 
-function getAuthServer(): AuthServer {
+export function getAuthServer(): AuthServer {
   if (cachedAuthServer) return cachedAuthServer;
 
   const convexUrl = requireEnv("NEXT_PUBLIC_CONVEX_URL", process.env.NEXT_PUBLIC_CONVEX_URL);

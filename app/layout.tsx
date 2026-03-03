@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { ScrollToTop } from "@/components/layout/ScrollToTop";
 import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
+import { SonnerToaster } from "@/components/providers/SonnerToaster";
 import { TanStackQueryProvider } from "@/components/providers/TanStackQueryProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { rootMetadata } from "@/lib/seo";
@@ -42,6 +43,7 @@ export default function RootLayout({
               <ThemeProvider>
                 <ScrollToTop />
                 <Header />
+                <SonnerToaster />
                 <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 min-h-[calc(100vh-160px)]">
                   {children}
                 </main>

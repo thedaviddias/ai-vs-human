@@ -5,6 +5,7 @@ import { api, internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
 import type { CommitPayload } from "../classification/botDetector";
 import { classifyCommit } from "../classification/botDetector";
+import { buildDetailedBreakdowns } from "../classification/detailedBreakdown";
 import type { CommitForStats } from "./statsComputation";
 import { computeStatsFromCommits } from "./statsComputation";
 import { computeRepoSinceMs, getUtcDayStart, getUtcWeekStart, toIsoTimestamp } from "./syncWindow";
@@ -92,7 +93,7 @@ export const privateRepoSync = internalAction({
 
         // Classify each commit IN MEMORY — nothing is persisted
         for (const rawCommit of repoCommits) {
-          const { classification, coAuthors: _ } = classifyCommit(rawCommit);
+          const { classification, coAuthors } = classifyCommit(rawCommit);
 
           allCommits.push({
             authoredAt: new Date(
@@ -104,6 +105,9 @@ export const privateRepoSync = internalAction({
             authorLogin: rawCommit.author?.login,
             authorEmail: rawCommit.commit.author?.email,
             authorName: rawCommit.commit.author?.name,
+            message: rawCommit.commit.message,
+            fullMessage: rawCommit.commit.message,
+            coAuthors,
           });
         }
 
@@ -127,6 +131,7 @@ export const privateRepoSync = internalAction({
       // 3. Compute aggregated stats using the SAME pure functions
       //    as the public pipeline — reuse is key for consistency
       const { weeklyStats, dailyStats } = computeStatsFromCommits(allCommits);
+      const { toolBreakdown, botBreakdown } = buildDetailedBreakdowns(allCommits);
 
       // 4. Write daily stats — the frontend's reactive query will pick these up
       //    immediately, so the heatmap updates as soon as data is written.
@@ -153,7 +158,14 @@ export const privateRepoSync = internalAction({
         });
       }
 
-      // 6. Mark sync as complete (clears progress fields)
+      // 6. Persist private detailed tool/bot identities (aggregate only).
+      await ctx.runMutation(internal.github.ingestPrivateStats.replacePrivateDetailedBreakdown, {
+        githubLogin,
+        toolBreakdown,
+        botBreakdown,
+      });
+
+      // 7. Mark sync as complete (clears progress fields)
       await ctx.runMutation(internal.github.ingestPrivateStats.markPrivateSyncComplete, {
         githubLogin,
       });
