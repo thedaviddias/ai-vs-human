@@ -30,3 +30,18 @@ export function extractUnknownBotIdentities(
     .filter((bot) => bot.commits > 0 && isUnknownBotKey(bot.key))
     .sort((a, b) => b.commits - a.commits || a.label.localeCompare(b.label));
 }
+
+/**
+ * Actionable unknown bots are unresolved per-identity keys (`bot-*`) that can
+ * be turned into explicit mappings in classifier code.
+ *
+ * Aggregate buckets (`other-bot`, `bot-unspecified`) are intentionally
+ * excluded because they don't provide a concrete identity string to map.
+ */
+export function extractActionableUnknownBotIdentities(
+  botBreakdown: BotBreakdownEntry[] | null | undefined
+): BotBreakdownEntry[] {
+  return extractUnknownBotIdentities(botBreakdown).filter(
+    (bot) => bot.key !== "other-bot" && bot.key !== "bot-unspecified"
+  );
+}

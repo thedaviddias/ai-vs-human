@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { extractUnknownBotIdentities, isUnknownBotKey } from "../unknownBots";
+import {
+  extractActionableUnknownBotIdentities,
+  extractUnknownBotIdentities,
+  isUnknownBotKey,
+} from "../unknownBots";
 
 describe("extractUnknownBotIdentities", () => {
   it("identifies unknown bot keys correctly", () => {
@@ -45,5 +49,27 @@ describe("extractUnknownBotIdentities", () => {
     ]);
 
     expect(result.map((entry) => entry.key)).toEqual(["bot-alpha", "bot-zeta"]);
+  });
+});
+
+describe("extractActionableUnknownBotIdentities", () => {
+  it("excludes aggregate unknown buckets and keeps actionable bot-* identities", () => {
+    const result = extractActionableUnknownBotIdentities([
+      { key: "other-bot", label: "Unknown Automation Bot", commits: 8 },
+      { key: "bot-unspecified", label: "Unknown Automation Bot", commits: 5 },
+      { key: "bot-internal-helper-bot", label: "Internal Helper Bot", commits: 3 },
+      { key: "bot-acme-ci", label: "Acme Ci", commits: 2 },
+    ]);
+
+    expect(result.map((entry) => entry.key)).toEqual(["bot-internal-helper-bot", "bot-acme-ci"]);
+  });
+
+  it("returns empty array when only aggregate unknown buckets exist", () => {
+    const result = extractActionableUnknownBotIdentities([
+      { key: "other-bot", label: "Unknown Automation Bot", commits: 4 },
+      { key: "bot-unspecified", label: "Unknown Automation Bot", commits: 2 },
+    ]);
+
+    expect(result).toEqual([]);
   });
 });

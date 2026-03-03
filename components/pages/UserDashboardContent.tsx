@@ -52,7 +52,8 @@ import { shouldShowPrivateData } from "@/lib/privateVisibility";
 import { getSyncBadgeLabel, getSyncStageLabel } from "@/lib/syncProgress";
 import { trackEvent } from "@/lib/tracking";
 import { extractUnknownAiIdentities } from "@/lib/unknownAi";
-import { extractUnknownBotIdentities } from "@/lib/unknownBots";
+import { shouldRenderUnknownBotSection } from "@/lib/unknownBotSection";
+import { type BotBreakdownEntry, extractActionableUnknownBotIdentities } from "@/lib/unknownBots";
 import { createUserAutoAnalyzePlan } from "@/lib/userAutoAnalyzePlan";
 import { formatPercentage } from "@/lib/utils";
 
@@ -117,6 +118,7 @@ interface AnalyzeQueueResult {
   reason?:
     | "new_repo"
     | "error_retry"
+    | "missing_detailed_breakdown"
     | "changed"
     | "unchanged"
     | "already_pending"
@@ -137,12 +139,16 @@ function summarizeQueueResults(results: AnalyzeQueueResult[]) {
     (r) => r.queued === true || (r.status === "pending" && r.existing === false)
   ).length;
   const unchangedCount = results.filter((r) => r.reason === "unchanged").length;
+  const detailedBackfillCount = results.filter(
+    (r) => r.reason === "missing_detailed_breakdown"
+  ).length;
   const alreadyPendingCount = results.filter((r) => r.reason === "already_pending").length;
   const alreadySyncingCount = results.filter((r) => r.reason === "already_syncing").length;
 
   return {
     queuedNowCount,
     unchangedCount,
+    detailedBackfillCount,
     alreadyPendingCount,
     alreadySyncingCount,
   };
@@ -337,6 +343,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   const [isFullRebuildLoading, setIsFullRebuildLoading] = useState(false);
   const [showFullRebuildConfirm, setShowFullRebuildConfirm] = useState(false);
   const [resyncError, setResyncError] = useState<string | null>(null);
+  const reportedRepoErrorsRef = useRef(new Set<string>());
 
   const toAnalyzeRepos = useCallback(
     () =>
@@ -362,9 +369,11 @@ export function UserDashboardContent({ owner }: { owner: string }) {
           `Sync started for ${summary.queuedNowCount} repo${summary.queuedNowCount === 1 ? "" : "s"}.`,
           {
             description:
-              summary.unchangedCount > 0
-                ? `${summary.unchangedCount} repo${summary.unchangedCount === 1 ? "" : "s"} had no new pushes.`
-                : undefined,
+              summary.detailedBackfillCount > 0
+                ? `${summary.detailedBackfillCount} repo${summary.detailedBackfillCount === 1 ? " was" : "s were"} queued to backfill missing bot/tool details.`
+                : summary.unchangedCount > 0
+                  ? `${summary.unchangedCount} repo${summary.unchangedCount === 1 ? "" : "s"} had no new pushes.`
+                  : undefined,
           }
         );
       } else if (summary.alreadyPendingCount > 0 || summary.alreadySyncingCount > 0) {
@@ -430,6 +439,36 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     api.queries.repos.getReposByFullNames,
     repoFullNames.length > 0 ? { fullNames: repoFullNames } : "skip"
   );
+
+  useEffect(() => {
+    if (!convexRepos || convexRepos.length === 0) return;
+
+    const newFailures: Array<{ fullName: string; message: string }> = [];
+
+    for (const item of convexRepos) {
+      if (!item.repo || item.repo.syncStatus !== "error") continue;
+
+      const message = item.repo.syncError?.trim() || "Unknown error";
+      const key = `${item.fullName}:${message}`;
+      if (reportedRepoErrorsRef.current.has(key)) continue;
+
+      reportedRepoErrorsRef.current.add(key);
+      newFailures.push({ fullName: item.fullName, message });
+    }
+
+    if (newFailures.length === 0) return;
+
+    if (newFailures.length === 1) {
+      const [failure] = newFailures;
+      toast.error(`Sync failed for ${failure.fullName}.`, { description: failure.message });
+      return;
+    }
+
+    const [firstFailure] = newFailures;
+    toast.error(`Sync failed for ${newFailures.length} repositories.`, {
+      description: `${firstFailure.fullName}: ${firstFailure.message}`,
+    });
+  }, [convexRepos]);
 
   const autoAnalyzePlan = useMemo(() => {
     if (githubRepos.length === 0 || !convexRepos) return null;
@@ -594,25 +633,14 @@ export function UserDashboardContent({ owner }: { owner: string }) {
     [mergedBreakdown]
   );
 
-  const unknownBotIdentities = useMemo(
-    () => extractUnknownBotIdentities(mergedBreakdown?.botBreakdown),
+  const actionableUnknownBotIdentities = useMemo(
+    () => extractActionableUnknownBotIdentities(mergedBreakdown?.botBreakdown),
     [mergedBreakdown]
   );
 
-  const namedUnknownBotIdentities = useMemo(
-    () =>
-      unknownBotIdentities.filter(
-        (bot) => bot.key !== "other-bot" && bot.key !== "bot-unspecified"
-      ),
-    [unknownBotIdentities]
-  );
-
-  const aggregateUnknownBotCommits = useMemo(
-    () =>
-      unknownBotIdentities
-        .filter((bot) => bot.key === "other-bot" || bot.key === "bot-unspecified")
-        .reduce((sum, bot) => sum + bot.commits, 0),
-    [unknownBotIdentities]
+  const showUnknownBotSection = useMemo(
+    () => shouldRenderUnknownBotSection(actionableUnknownBotIdentities),
+    [actionableUnknownBotIdentities]
   );
 
   const repoPercentagesById = useMemo(() => {
@@ -763,9 +791,15 @@ export function UserDashboardContent({ owner }: { owner: string }) {
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [isUnknownAiModalOpen, setIsUnknownAiModalOpen] = useState(false);
   const [isUnknownBotModalOpen, setIsUnknownBotModalOpen] = useState(false);
+  const [selectedUnknownBotKey, setSelectedUnknownBotKey] = useState<string | null>(null);
   const [wantsNotification, setWantsNotification] = useState(false);
   const prevSyncingRef = useRef(isSyncInProgress);
   const { playSuccess } = useSound();
+
+  const openUnknownBotModal = useCallback((bot?: Pick<BotBreakdownEntry, "key">) => {
+    setSelectedUnknownBotKey(bot?.key ?? null);
+    setIsUnknownBotModalOpen(true);
+  }, []);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -1198,8 +1232,12 @@ export function UserDashboardContent({ owner }: { owner: string }) {
       />
       <UnknownBotIdentitiesModal
         isOpen={isUnknownBotModalOpen}
-        onClose={() => setIsUnknownBotModalOpen(false)}
-        bots={unknownBotIdentities}
+        onClose={() => {
+          setIsUnknownBotModalOpen(false);
+          setSelectedUnknownBotKey(null);
+        }}
+        bots={actionableUnknownBotIdentities}
+        initialSelectedBotKey={selectedUnknownBotKey}
       />
 
       {/* Main Insights Card */}
@@ -1365,7 +1403,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
               </ErrorBoundary>
             )}
 
-            {(namedUnknownBotIdentities.length > 0 || aggregateUnknownBotCommits > 0) && (
+            {showUnknownBotSection && (
               <ErrorBoundary level="section">
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
@@ -1375,49 +1413,29 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                     <div className="h-px flex-1 bg-neutral-800/50" />
                   </div>
                   <p className="text-xs text-neutral-500">
-                    These bot identities could not be matched to a known automation tool.
+                    These bot identities are unmapped and can be added to classifier patterns.
                   </p>
-                  {aggregateUnknownBotCommits > 0 && (
-                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200">
-                      <p>
-                        {aggregateUnknownBotCommits.toLocaleString()} commit
-                        {aggregateUnknownBotCommits === 1 ? "" : "s"} are still in an aggregate
-                        unknown bucket with no concrete identity string available.
-                      </p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {actionableUnknownBotIdentities.map((bot) => (
                       <button
                         type="button"
-                        onClick={() => setIsUnknownBotModalOpen(true)}
-                        className="mt-2 text-xs font-semibold underline underline-offset-2 hover:text-amber-100"
+                        key={bot.key}
+                        onClick={() => openUnknownBotModal(bot)}
+                        className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900/60"
                       >
-                        Open details
+                        <div className="truncate text-[10px] font-bold uppercase tracking-widest text-neutral-500">
+                          {bot.label}
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          {bot.commits.toLocaleString()}
+                          <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">
+                            Commits
+                          </span>
+                        </div>
+                        <div className="mt-1 truncate text-[11px] text-neutral-600">{bot.key}</div>
                       </button>
-                    </div>
-                  )}
-                  {namedUnknownBotIdentities.length > 0 && (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {namedUnknownBotIdentities.map((bot) => (
-                        <button
-                          type="button"
-                          key={bot.key}
-                          onClick={() => setIsUnknownBotModalOpen(true)}
-                          className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 text-left transition-colors hover:border-neutral-700 hover:bg-neutral-900/60"
-                        >
-                          <div className="truncate text-[10px] font-bold uppercase tracking-widest text-neutral-500">
-                            {bot.label}
-                          </div>
-                          <div className="text-lg font-bold text-white">
-                            {bot.commits.toLocaleString()}
-                            <span className="ml-1.5 text-[10px] font-medium uppercase tracking-wider text-neutral-600">
-                              Commits
-                            </span>
-                          </div>
-                          <div className="mt-1 truncate text-[11px] text-neutral-600">
-                            {bot.key}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
               </ErrorBoundary>
             )}
@@ -1501,6 +1519,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                         (r) => r.fullName === `${owner}/${ghRepo.name}`
                       );
                       const syncStatus = convexRepo?.repo?.syncStatus;
+                      const syncError = convexRepo?.repo?.syncError;
                       const repoPercentages = convexRepo?.repo?._id
                         ? repoPercentagesById.get(convexRepo.repo._id)
                         : undefined;
@@ -1525,6 +1544,7 @@ export function UserDashboardContent({ owner }: { owner: string }) {
                                 syncCommitsFetched={
                                   convexRepo?.repo?.syncCommitsFetched as number | undefined
                                 }
+                                syncError={syncError}
                               />
                             </div>
                             {ghRepo.description && (
@@ -1613,10 +1633,12 @@ function SyncBadge({
   status,
   syncStage,
   syncCommitsFetched,
+  syncError,
 }: {
   status?: string;
   syncStage?: string;
   syncCommitsFetched?: number;
+  syncError?: string;
 }) {
   if (!status || status === "pending") {
     return (
@@ -1643,8 +1665,12 @@ function SyncBadge({
     );
   }
   if (status === "error") {
+    const errorMessage = syncError?.trim() || "Unknown error";
     return (
-      <span className="flex items-center gap-1 text-xs text-red-500">
+      <span
+        className="flex cursor-help items-center gap-1 text-xs text-red-500"
+        title={`Sync failed: ${errorMessage}`}
+      >
         <XCircle className="h-3 w-3" />
         Error
       </span>
