@@ -2,7 +2,7 @@
 
 import { CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { postJson } from "@/lib/postJson";
 
@@ -12,7 +12,7 @@ interface CompleteResponse {
   status: "approved";
 }
 
-export default function DesktopLinkPage() {
+function DesktopLinkPageContent() {
   const searchParams = useSearchParams();
   const code = useMemo(() => searchParams.get("code")?.trim() ?? "", [searchParams]);
 
@@ -98,5 +98,27 @@ export default function DesktopLinkPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function DesktopLinkFallback() {
+  return (
+    <main className="mx-auto max-w-lg px-4 py-20">
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-8 text-center">
+        <h1 className="text-2xl font-bold text-white">Desktop Link</h1>
+        <div className="mt-6 inline-flex items-center gap-2 text-sm text-neutral-300">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading...
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export default function DesktopLinkPage() {
+  return (
+    <Suspense fallback={<DesktopLinkFallback />}>
+      <DesktopLinkPageContent />
+    </Suspense>
   );
 }
