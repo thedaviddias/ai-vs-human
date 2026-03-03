@@ -2,35 +2,16 @@
  * Shared rendering logic for user OG images.
  *
  * Used by both the public (/api/og/user) and private (/api/og/user/private) routes.
- * The private variant passes `includesPrivateData: true` to add a subtle badge.
  */
 
 import type { ReactElement } from "react";
+import { buildOgHeatmapGrid, getBlendColor, getSplitSegments } from "@/lib/og/squareRendering";
 import { getRank } from "@/lib/ranks";
 
 // Heatmap constants
 const CELL_SIZE = 16;
 const CELL_GAP = 3;
-const WEEKS_TO_SHOW = 52;
-
-const COLORS_HUMAN = ["#064e3b", "#065f46", "#059669", "#10b981", "#34d399"];
-const COLORS_AI = ["#4c1d95", "#5b21b6", "#7c3aed", "#8b5cf6", "#a78bfa"];
-const COLORS_AUTOMATION = ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b"];
-
-function getSquareColor(
-  human: number,
-  ai: number,
-  automation: number,
-  maxActivity: number
-): string | null {
-  const total = human + ai + automation;
-  if (total === 0) return null;
-  let colorScale = COLORS_HUMAN;
-  if (ai >= human && ai >= automation) colorScale = COLORS_AI;
-  else if (automation >= human && automation >= ai) colorScale = COLORS_AUTOMATION;
-  const index = Math.min(4, Math.floor((total / maxActivity) * 5));
-  return colorScale[index];
-}
+export const USER_OG_WEEKS_TO_SHOW = 52;
 
 function formatPct(val: string | null | undefined): string {
   if (!val) return "0";
@@ -68,13 +49,13 @@ export interface UserOgData {
 export interface RenderUserOgImageParams {
   user: UserOgData;
   displayName: string;
-  includesPrivateData?: boolean;
+  squareMode?: "split" | "blend";
 }
 
 export function renderUserOgImage({
   user,
   displayName,
-  includesPrivateData,
+  squareMode = "split",
 }: RenderUserOgImageParams): ReactElement {
   const humanDisplayPercentage = formatPct(user.humanPercentage);
   const aiDisplayPercentage = formatPct(user.aiPercentage);
@@ -83,34 +64,10 @@ export function renderUserOgImage({
   const humanPct = Number.parseFloat(user.locHumanPercentage ?? user.humanPercentage);
   const rank = getRank(humanPct);
 
-  // Process heatmap data
-  const dataMap = new Map<number, { human: number; ai: number; automation: number }>();
-  let maxActivity = 0;
-  for (const p of user.dailyData) {
-    dataMap.set(p.date, p);
-    const total = p.human + p.ai + (p.automation ?? 0);
-    if (total > maxActivity) maxActivity = total;
-  }
-
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const todayDow = (today.getUTCDay() + 6) % 7;
-  const totalDays = WEEKS_TO_SHOW * 7 + todayDow + 1;
-  const startDate = new Date(today.getTime() - (totalDays - 1) * 86_400_000);
-
-  const cells: ({ human: number; ai: number; automation: number } | null)[][] = Array.from(
-    { length: WEEKS_TO_SHOW + 1 },
-    () => Array.from({ length: 7 }, () => null)
-  );
-
-  for (let i = 0; i < totalDays; i++) {
-    const cellDate = new Date(startDate.getTime() + i * 86_400_000);
-    const dow = (cellDate.getUTCDay() + 6) % 7;
-    const col = Math.floor(i / 7);
-    if (col <= WEEKS_TO_SHOW) {
-      cells[col][dow] = dataMap.get(cellDate.getTime()) || { human: 0, ai: 0, automation: 0 };
-    }
-  }
+  const { cells, maxActivity } = buildOgHeatmapGrid({
+    dailyData: user.dailyData,
+    weeksToShow: USER_OG_WEEKS_TO_SHOW,
+  });
 
   return (
     <div
@@ -337,20 +294,39 @@ export function renderUserOgImage({
                 style={{ display: "flex", flexDirection: "column", gap: `${CELL_GAP}px` }}
               >
                 {column.map((data, rowIndex) => {
-                  const color = data
-                    ? getSquareColor(data.human, data.ai, data.automation, maxActivity || 1)
-                    : null;
+                  const segments =
+                    squareMode === "split"
+                      ? getSplitSegments(data.human, data.ai, data.automation, maxActivity || 1)
+                      : null;
+                  const color =
+                    squareMode === "blend"
+                      ? getBlendColor(data.human, data.ai, data.automation, maxActivity || 1)
+                      : null;
                   return (
                     <div
                       key={`cell-${colIndex}-${rowIndex}`}
                       style={{
                         display: "flex",
+                        flexDirection: "row",
                         width: `${CELL_SIZE}px`,
                         height: `${CELL_SIZE}px`,
                         borderRadius: "2px",
+                        overflow: "hidden",
                         backgroundColor: color || "#262626",
                       }}
-                    />
+                    >
+                      {segments?.map((segment, segmentIndex) => (
+                        <div
+                          key={`cell-${colIndex}-${rowIndex}-${segmentIndex}`}
+                          style={{
+                            display: "flex",
+                            height: "100%",
+                            width: `${segment.widthPct}%`,
+                            backgroundColor: segment.color,
+                          }}
+                        />
+                      ))}
+                    </div>
                   );
                 })}
               </div>
@@ -369,15 +345,9 @@ export function renderUserOgImage({
           color: "#737373",
           fontSize: "20px",
           fontWeight: "bold",
-          gap: "16px",
         }}
       >
         <div style={{ display: "flex" }}>aivshuman.dev</div>
-        {includesPrivateData && (
-          <div style={{ display: "flex", color: "#a78bfa", fontSize: "16px" }}>
-            + private activity
-          </div>
-        )}
       </div>
     </div>
   );
