@@ -20,7 +20,7 @@ export interface DailyDataPoint {
 interface ContributionHeatmapProps {
   data: DailyDataPoint[];
   viewMode: "commits" | "loc" | "linesEdited";
-  lineEditMode?: "all" | "tab" | "agent";
+  lineEditMode?: "cursor" | "combined" | "tab";
   /** When true, a sync is in progress and data may be incomplete */
   isSyncing?: boolean;
 }
@@ -242,7 +242,7 @@ interface TooltipInfo {
 export function ContributionHeatmap({
   data,
   viewMode,
-  lineEditMode = "all",
+  lineEditMode = "cursor",
   isSyncing,
 }: ContributionHeatmapProps) {
   const gradientPrefix = useId().replace(/:/g, "");
@@ -414,6 +414,7 @@ export function ContributionHeatmap({
             const { cell, fill, total, ariaLabel, linesEdited } = renderedCell;
             const isClickable = viewMode === "linesEdited" ? linesEdited > 0 : total > 0;
             return (
+              // biome-ignore lint/a11y/useSemanticElements: SVG rect needs role="button" for interactivity
               <rect
                 key={cell.dateMs}
                 x={LABEL_LEFT + cell.col * CELL_STEP}
@@ -425,6 +426,7 @@ export function ContributionHeatmap({
                 fill={fill ?? undefined}
                 className={`cursor-pointer transition-opacity hover:opacity-80 ${fill === null ? "fill-neutral-800" : ""}`}
                 role="button"
+                aria-roledescription="contribution cell"
                 tabIndex={isClickable ? 0 : -1}
                 aria-label={ariaLabel}
                 onMouseEnter={(e) => showTooltipForCell(e.currentTarget, renderedCell)}
@@ -521,11 +523,11 @@ export function ContributionHeatmap({
             </div>
             <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
               {viewMode === "linesEdited"
-                ? lineEditMode === "all"
-                  ? `${tooltip.linesEdited.toLocaleString()} lines edited (Agent ${tooltip.composerAcceptedLines.toLocaleString()}, Tab ${tooltip.tabAcceptedLines.toLocaleString()})`
-                  : lineEditMode === "agent"
-                    ? `${tooltip.linesEdited.toLocaleString()} agent lines edited`
-                    : `${tooltip.linesEdited.toLocaleString()} tab lines edited`
+                ? lineEditMode === "combined"
+                  ? `${tooltip.linesEdited.toLocaleString()} lines edited (Cursor ${tooltip.composerAcceptedLines.toLocaleString()}, Tab ${tooltip.tabAcceptedLines.toLocaleString()})`
+                  : lineEditMode === "cursor"
+                    ? `${tooltip.linesEdited.toLocaleString()} cursor heatmap lines edited`
+                    : `${tooltip.linesEdited.toLocaleString()} tab accepted lines`
                 : `${tooltip.total.toLocaleString()} ${viewMode === "loc" ? "lines" : "commits"} total (${tooltip.aiPercentage}% AI)`}
             </div>
           </div>
@@ -538,18 +540,22 @@ export function ContributionHeatmap({
                       className="h-2.5 w-2.5 rounded-sm"
                       style={{ backgroundColor: "#22d3ee" }}
                     />
-                    {lineEditMode === "all" ? "Total" : lineEditMode === "agent" ? "Agent" : "Tab"}
+                    {lineEditMode === "combined"
+                      ? "Cursor + Tab"
+                      : lineEditMode === "cursor"
+                        ? "Cursor (Heatmap)"
+                        : "Tab Accepted"}
                   </span>
                   <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                     {tooltip.linesEdited.toLocaleString()}
                   </span>
                 </div>
-                {lineEditMode === "all" && (
+                {lineEditMode === "combined" && (
                   <>
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2.5 text-neutral-600 dark:text-neutral-300">
                         <div className="h-2.5 w-2.5 rounded-sm bg-teal-400" />
-                        Agent
+                        Cursor (Heatmap)
                       </span>
                       <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                         {tooltip.composerAcceptedLines.toLocaleString()}
@@ -558,7 +564,7 @@ export function ContributionHeatmap({
                     <div className="flex items-center justify-between">
                       <span className="flex items-center gap-2.5 text-neutral-600 dark:text-neutral-300">
                         <div className="h-2.5 w-2.5 rounded-sm bg-sky-500" />
-                        Tab
+                        Tab Accepted
                       </span>
                       <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                         {tooltip.tabAcceptedLines.toLocaleString()}

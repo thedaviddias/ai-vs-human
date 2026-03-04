@@ -62,9 +62,9 @@ class ErrorBoundary extends Component<
 
 const FALLBACK_URL = "https://aivshuman.dev";
 const LOCAL_LINE_MODE_OPTIONS = [
-  { value: "cursor", label: "Cursor" },
-  { value: "combined", label: "Combined" },
-  { value: "tab", label: "Tab" },
+  { value: "cursor", label: "Cursor (Heatmap)" },
+  { value: "combined", label: "Cursor + Tab" },
+  { value: "tab", label: "Tab Only" },
 ] as const;
 
 type LocalLineMode = (typeof LOCAL_LINE_MODE_OPTIONS)[number]["value"];
@@ -476,7 +476,7 @@ function AppContent() {
               lineEditMode={localLineMode}
             />
             <p className="mt-2 px-2 text-xs text-neutral-500">
-              Cursor matches Cursor heatmap. Combined includes Cursor + Tab accepts.
+              Cursor (Heatmap) matches Cursor official chart. Cursor + Tab adds tab accepts.
             </p>
             <p className="mt-4 text-center text-sm text-neutral-500">
               Connect to see how this local activity balances with your overall GitHub history.
@@ -570,7 +570,7 @@ function AppContent() {
             isSyncing={isSyncing}
           />
           <p className="mt-2 px-2 text-xs text-neutral-500">
-            Cursor matches Cursor heatmap. Combined includes Cursor + Tab accepts.
+            Cursor (Heatmap) matches Cursor official chart. Cursor + Tab adds tab accepts.
           </p>
         </section>
       )}
