@@ -232,9 +232,10 @@ export const getIndexedUsersWithProfiles = query({
 export const getProfile = query({
   args: { owner: v.string() },
   handler: async (ctx, args) => {
+    const owner = args.owner.toLowerCase();
     return await ctx.db
       .query("profiles")
-      .withIndex("by_owner", (q) => q.eq("owner", args.owner))
+      .withIndex("by_owner", (q) => q.eq("owner", owner))
       .unique();
   },
 });
@@ -263,7 +264,8 @@ export const getProfileOwnerByAvatarUrl = query({
  * Internal helper that fetches public repo data for a user.
  * Extracted so it can be reused by both getUserByOwner and getUserByOwnerWithPrivateData.
  */
-async function getUserByOwnerHelper(ctx: QueryCtx, owner: string) {
+async function getUserByOwnerHelper(ctx: QueryCtx, ownerInput: string) {
+  const owner = ownerInput.toLowerCase();
   let repos = await ctx.db
     .query("repos")
     .withIndex("by_owner", (q) => q.eq("owner", owner))
@@ -591,5 +593,46 @@ export const getRelatedRecentUsers = query({
     }
 
     return result;
+  },
+});
+
+/**
+ * Returns combined public and private stats for the desktop app.
+ * This query skips the standard browser-session-based auth check because
+ * the caller (the desktop API route) has already verified the request
+ * using the DESKTOP_TOKEN_SECRET.
+ */
+export const getDesktopUserStats = query({
+  args: { owner: v.string() },
+  handler: async (ctx, args) => {
+    const baseUser = await getUserByOwnerHelper(ctx, args.owner);
+
+    const privateDailyStats = await ctx.db
+      .query("userPrivateDailyStats")
+      .withIndex("by_login", (q) => q.eq("githubLogin", args.owner))
+      .collect();
+
+    if (!baseUser) {
+      // Return a skeleton/empty state for new users who haven't synced anything yet
+      const emptyUser = {
+        owner: args.owner,
+        avatarUrl: `https://github.com/${args.owner}.png?size=160`,
+        humanCommits: 0,
+        aiCommits: 0,
+        automationCommits: 0,
+        totalCommits: 0,
+        totalAdditions: 0,
+        repoCount: 0,
+        humanPercentage: "0",
+        aiPercentage: "0",
+        automationPercentage: "0",
+        locHumanPercentage: null,
+        locAiPercentage: null,
+        dailyData: [],
+      };
+      return mergePrivateDailyStatsIntoUser(emptyUser, privateDailyStats);
+    }
+
+    return mergePrivateDailyStatsIntoUser(baseUser, privateDailyStats);
   },
 });

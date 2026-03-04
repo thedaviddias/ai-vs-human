@@ -9,7 +9,8 @@ export const requestRepo = mutation({
     ipHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const fullName = `${args.owner}/${args.name}`;
+    const owner = args.owner.toLowerCase();
+    const fullName = `${owner}/${args.name.toLowerCase()}`;
 
     // Check if repo already exists
     const existing = await ctx.db
@@ -53,7 +54,7 @@ export const requestRepo = mutation({
 
     // Insert new repo with pending status
     const repoId = await ctx.db.insert("repos", {
-      owner: args.owner,
+      owner,
       name: args.name,
       fullName,
       defaultBranch: "main",
@@ -65,7 +66,7 @@ export const requestRepo = mutation({
     // Schedule GitHub fetch
     await ctx.scheduler.runAfter(0, internal.github.fetchRepo.fetchRepo, {
       repoId,
-      owner: args.owner,
+      owner,
       name: args.name,
     });
 
@@ -77,7 +78,8 @@ export const requestRepo = mutation({
 export const seedRepo = internalMutation({
   args: { owner: v.string(), name: v.string() },
   handler: async (ctx, args) => {
-    const fullName = `${args.owner}/${args.name}`;
+    const owner = args.owner.toLowerCase();
+    const fullName = `${owner}/${args.name.toLowerCase()}`;
 
     const existing = await ctx.db
       .query("repos")
@@ -87,7 +89,7 @@ export const seedRepo = internalMutation({
     if (existing) return;
 
     const repoId = await ctx.db.insert("repos", {
-      owner: args.owner,
+      owner,
       name: args.name,
       fullName,
       defaultBranch: "main",
@@ -98,7 +100,7 @@ export const seedRepo = internalMutation({
 
     await ctx.scheduler.runAfter(0, internal.github.fetchRepo.fetchRepo, {
       repoId,
-      owner: args.owner,
+      owner,
       name: args.name,
     });
   },

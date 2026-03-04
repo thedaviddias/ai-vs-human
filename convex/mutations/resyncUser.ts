@@ -26,9 +26,11 @@ export const resyncUser = mutation({
       throw new Error("Unauthorized request");
     }
 
+    const owner = args.owner.toLowerCase();
+
     const existingThrottle = await ctx.db
       .query("resyncRateLimits")
-      .withIndex("by_owner_ip", (q) => q.eq("owner", args.owner).eq("ipHash", args.ipHash))
+      .withIndex("by_owner_ip", (q) => q.eq("owner", owner).eq("ipHash", args.ipHash))
       .unique();
 
     const throttle = evaluateResyncThrottle({
@@ -59,7 +61,7 @@ export const resyncUser = mutation({
       });
     } else {
       await ctx.db.insert("resyncRateLimits", {
-        owner: args.owner,
+        owner,
         ipHash: args.ipHash,
         lastResyncAt: throttle.lastResyncAt,
         dayKey: throttle.dayKey,
@@ -70,7 +72,7 @@ export const resyncUser = mutation({
     // Find all repos for this owner efficiently using the index
     const ownerRepos = await ctx.db
       .query("repos")
-      .withIndex("by_owner", (q) => q.eq("owner", args.owner))
+      .withIndex("by_owner", (q) => q.eq("owner", owner))
       .collect();
 
     if (ownerRepos.length === 0) {

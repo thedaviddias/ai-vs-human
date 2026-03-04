@@ -107,7 +107,8 @@ export function shouldMergePrivateData(profile: {
  * Enforces authorization for private data access.
  * Throws an error if the user is not authorized to view the data.
  */
-export async function requirePrivateDataAccess(ctx: QueryCtx, githubLogin: string) {
+export async function requirePrivateDataAccess(ctx: QueryCtx, githubLoginInput: string) {
+  const githubLogin = githubLoginInput.toLowerCase();
   const profile = await ctx.db
     .query("profiles")
     .withIndex("by_owner", (q) => q.eq("owner", githubLogin))

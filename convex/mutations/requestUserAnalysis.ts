@@ -25,7 +25,8 @@ export const requestUserAnalysis = mutation({
     const results = [];
 
     for (const repo of limitedRepos) {
-      const fullName = `${repo.owner}/${repo.name}`;
+      const owner = repo.owner.toLowerCase();
+      const fullName = `${owner}/${repo.name.toLowerCase()}`;
       const requestedAt = Date.now();
 
       const existing = await ctx.db
@@ -114,7 +115,7 @@ export const requestUserAnalysis = mutation({
       }
 
       await ctx.db.insert("repos", {
-        owner: repo.owner,
+        owner,
         name: repo.name,
         fullName,
         defaultBranch: "main",
@@ -148,7 +149,7 @@ export const requestUserAnalysis = mutation({
     // Always ensure at least one pending repo is being processed.
     // This recovers from stale "pending" states where a prior scheduled
     // action failed silently (e.g. during a code deploy).
-    const owner = limitedRepos[0]?.owner;
+    const owner = limitedRepos[0]?.owner.toLowerCase();
     if (owner) {
       const ownerPending = await ctx.db
         .query("repos")

@@ -65,7 +65,7 @@ impl CursorAdapter {
     fn parse_rows(conn: &Connection) -> Result<Vec<DailyMetricRow>, String> {
         let mut stmt = conn
             .prepare(
-                "SELECT key, value FROM ItemTable WHERE key LIKE 'aiCodeTracking.dailyStats.v1.%'",
+                "SELECT key, value FROM ItemTable WHERE key LIKE 'aiCodeTracking.dailyStats.%'",
             )
             .map_err(|error| format!("Failed to prepare SQLite query: {error}"))?;
 
@@ -119,6 +119,8 @@ impl CursorAdapter {
             metrics.insert("composerSuggestedLines".to_string(), composer_suggested);
             metrics.insert("acceptedLines".to_string(), accepted);
             metrics.insert("suggestedLines".to_string(), suggested);
+            // In Cursor terms, "AI Line Edits" usually refers to the accepted lines from AI suggestions
+            metrics.insert("aiLineEdits".to_string(), accepted);
 
             rows.push(DailyMetricRow { date, metrics });
         }
@@ -155,7 +157,7 @@ impl SourceAdapter for CursorAdapter {
 }
 
 fn extract_date_from_key(key: &str) -> Option<String> {
-    if !key.starts_with(CURSOR_KEY_PREFIX) {
+    if !key.starts_with("aiCodeTracking.dailyStats.") {
         return None;
     }
 

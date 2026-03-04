@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { DailyDataPoint } from "../components/ContributionHeatmap";
 
 export interface DeviceStartResponse {
   deviceCode: string;
@@ -16,6 +17,11 @@ export interface SyncResult {
   sourceId: string;
   rowCount: number;
   uploadedAt: number;
+}
+
+export interface DailyMetricRow {
+  date: string;
+  metrics: Record<string, number>;
 }
 
 export async function getDefaultBaseUrl(): Promise<string> {
@@ -51,4 +57,33 @@ export async function setSourceVisibility(
   showSourceStatsPublicly: boolean
 ): Promise<boolean> {
   return invoke("set_source_visibility", { baseUrl, showSourceStatsPublicly });
+}
+
+export async function openUrl(url: string): Promise<void> {
+  return invoke("open_url", { url });
+}
+
+export interface UserStats {
+  owner: string;
+  avatarUrl: string;
+  humanCommits: number;
+  aiCommits: number;
+  automationCommits: number;
+  totalCommits: number;
+  totalAdditions: number;
+  repoCount: number;
+  humanPercentage: string;
+  aiPercentage: string;
+  automationPercentage: string;
+  locHumanPercentage: string | null;
+  locAiPercentage: string | null;
+  dailyData: DailyDataPoint[];
+}
+
+export async function getUserStats(baseUrl: string): Promise<UserStats> {
+  return invoke("get_user_stats", { baseUrl });
+}
+
+export async function getLocalCursorStats(): Promise<DailyMetricRow[]> {
+  return invoke("get_local_cursor_stats");
 }

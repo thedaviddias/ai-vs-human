@@ -216,7 +216,7 @@ export function HomeContent({
 
           <ErrorBoundary level="section">
             <div className="overflow-x-auto overflow-y-hidden rounded-xl border border-neutral-800">
-              <table className="min-w-[620px] text-sm">
+              <table className="w-full min-w-[620px] text-sm">
                 <thead className="bg-neutral-900/70 text-left text-xs uppercase tracking-widest text-neutral-500">
                   <tr>
                     <th className="px-4 py-3">#</th>

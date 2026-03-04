@@ -63,7 +63,7 @@ export const completeDesktopDeviceLink = mutation({
 
     await ctx.db.patch(link._id, {
       status: "approved",
-      githubLogin: args.githubLogin,
+      githubLogin: args.githubLogin.toLowerCase(),
       approvedAt: args.now,
     });
 

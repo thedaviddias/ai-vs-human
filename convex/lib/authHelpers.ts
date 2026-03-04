@@ -24,7 +24,7 @@ export async function resolveGitHubLogin(
 ): Promise<string | null> {
   // Fast path: username was correctly set by mapProfileToUser on sign-in
   if (user.username) {
-    return user.username;
+    return user.username.toLowerCase();
   }
 
   // Fallback 1: match GitHub avatar URL against profiles table.
@@ -38,7 +38,7 @@ export async function resolveGitHubLogin(
       .first();
 
     if (profile) {
-      return profile.owner;
+      return profile.owner.toLowerCase();
     }
   }
 
@@ -51,7 +51,7 @@ export async function resolveGitHubLogin(
       .first();
 
     if (contributor?.login) {
-      return contributor.login;
+      return contributor.login.toLowerCase();
     }
   }
 

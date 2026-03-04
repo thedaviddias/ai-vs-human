@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "Default capability for the desktop sync app",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "store:default",
+    "log:default",
+    "process:default",
+    "shell:default",
+    "core:tray:default",
+    "core:menu:default"
+  ]
 }

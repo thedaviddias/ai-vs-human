@@ -16,10 +16,11 @@ export const replaceUserSourceDailySnapshot = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const githubLogin = args.githubLogin.toLowerCase();
     const existingRows = await ctx.db
       .query("userSourceDailyStats")
       .withIndex("by_login_source", (q) =>
-        q.eq("githubLogin", args.githubLogin).eq("sourceId", args.sourceId)
+        q.eq("githubLogin", githubLogin).eq("sourceId", args.sourceId)
       )
       .collect();
 
@@ -29,7 +30,7 @@ export const replaceUserSourceDailySnapshot = mutation({
 
     for (const row of args.rows) {
       await ctx.db.insert("userSourceDailyStats", {
-        githubLogin: args.githubLogin,
+        githubLogin,
         sourceId: args.sourceId,
         schemaVersion: args.schemaVersion,
         date: row.date,
@@ -41,7 +42,7 @@ export const replaceUserSourceDailySnapshot = mutation({
     const existingStatus = await ctx.db
       .query("userSourceSyncStatus")
       .withIndex("by_login_source", (q) =>
-        q.eq("githubLogin", args.githubLogin).eq("sourceId", args.sourceId)
+        q.eq("githubLogin", githubLogin).eq("sourceId", args.sourceId)
       )
       .unique();
 
@@ -54,7 +55,7 @@ export const replaceUserSourceDailySnapshot = mutation({
       });
     } else {
       await ctx.db.insert("userSourceSyncStatus", {
-        githubLogin: args.githubLogin,
+        githubLogin,
         sourceId: args.sourceId,
         lastSyncedAt: args.uploadedAt,
         rowCount: args.rows.length,

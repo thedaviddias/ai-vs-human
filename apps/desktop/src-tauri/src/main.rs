@@ -3,14 +3,17 @@
 mod sources;
 
 use iana_time_zone::get_timezone;
-use keyring::Entry;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sources::{get_adapter, DailyMetricRow};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::Manager;
+use tauri_plugin_store::StoreBuilder;
 
-const SERVICE_NAME: &str = "aivshuman.desktop";
-const TOKEN_USERNAME: &str = "desktop_token";
 const DEFAULT_BASE_URL: &str = "https://aivshuman.dev";
+const STORE_FILENAME: &str = "auth_token.json";
+const TOKEN_KEY: &str = "desktop_token";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -82,45 +85,33 @@ fn normalize_base_url(base_url: Option<String>) -> String {
     input.trim_end_matches('/').to_string()
 }
 
-fn keyring_entry() -> Result<Entry, String> {
-    Entry::new(SERVICE_NAME, TOKEN_USERNAME).map_err(|error| format!("Keychain access failed: {error}"))
+fn save_token(app: &tauri::AppHandle, token: &str) -> Result<(), String> {
+    let store = StoreBuilder::new(app, STORE_FILENAME)
+        .build()
+        .map_err(|e| format!("Store init error: {e}"))?;
+    store.set(
+        TOKEN_KEY.to_string(),
+        serde_json::Value::String(token.to_string()),
+    );
+    store.save().map_err(|e| format!("Store save error: {e}"))
 }
 
-fn save_token(token: &str) -> Result<(), String> {
-    let entry = keyring_entry()?;
-    entry
-        .set_password(token)
-        .map_err(|error| format!("Failed to save desktop token: {error}"))
+fn get_token(app: &tauri::AppHandle) -> Result<Option<String>, String> {
+    let store = StoreBuilder::new(app, STORE_FILENAME)
+        .build()
+        .map_err(|e| format!("Store init error: {e}"))?;
+    let token = store
+        .get(TOKEN_KEY)
+        .and_then(|v| v.as_str().map(|s| s.to_string()));
+    Ok(token)
 }
 
-fn get_token() -> Result<Option<String>, String> {
-    let entry = keyring_entry()?;
-    match entry.get_password() {
-        Ok(token) => Ok(Some(token)),
-        Err(error) => {
-            let message = error.to_string();
-            if message.contains("NoEntry") || message.contains("no entry") {
-                Ok(None)
-            } else {
-                Err(format!("Failed to read desktop token: {error}"))
-            }
-        }
-    }
-}
-
-fn clear_token() -> Result<(), String> {
-    let entry = keyring_entry()?;
-    match entry.delete_credential() {
-        Ok(_) => Ok(()),
-        Err(error) => {
-            let message = error.to_string();
-            if message.contains("NoEntry") || message.contains("no entry") {
-                Ok(())
-            } else {
-                Err(format!("Failed to clear desktop token: {error}"))
-            }
-        }
-    }
+fn clear_token(app: &tauri::AppHandle) -> Result<(), String> {
+    let store = StoreBuilder::new(app, STORE_FILENAME)
+        .build()
+        .map_err(|e| format!("Store init error: {e}"))?;
+    store.delete(TOKEN_KEY);
+    store.save().map_err(|e| format!("Store save error: {e}"))
 }
 
 fn current_platform() -> String {
@@ -138,13 +129,13 @@ fn get_default_base_url() -> String {
 }
 
 #[tauri::command]
-fn get_saved_desktop_token() -> Result<Option<String>, String> {
-    get_token()
+fn get_saved_desktop_token(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    get_token(&app)
 }
 
 #[tauri::command]
-fn clear_saved_desktop_token() -> Result<(), String> {
-    clear_token()
+fn clear_saved_desktop_token(app: tauri::AppHandle) -> Result<(), String> {
+    clear_token(&app)
 }
 
 #[tauri::command]
@@ -176,7 +167,11 @@ async fn start_device_link(base_url: Option<String>) -> Result<DeviceStartRespon
 }
 
 #[tauri::command]
-async fn poll_device_link(base_url: Option<String>, device_code: String) -> Result<PollResponse, String> {
+async fn poll_device_link(
+    app: tauri::AppHandle,
+    base_url: Option<String>,
+    device_code: String,
+) -> Result<PollResponse, String> {
     let base_url = normalize_base_url(base_url);
     let endpoint = format!("{base_url}/api/desktop/device/poll");
 
@@ -204,7 +199,7 @@ async fn poll_device_link(base_url: Option<String>, device_code: String) -> Resu
 
     if payload.status == "approved" {
         if let Some(token) = payload.token.as_ref() {
-            save_token(token)?;
+            save_token(&app, token)?;
         }
     }
 
@@ -212,8 +207,10 @@ async fn poll_device_link(base_url: Option<String>, device_code: String) -> Resu
 }
 
 #[tauri::command]
-async fn sync_now(base_url: Option<String>) -> Result<SyncResult, String> {
-    let token = get_token()?.ok_or_else(|| "Desktop is not connected. Connect before syncing.".to_string())?;
+async fn sync_now(app: tauri::AppHandle, base_url: Option<String>) -> Result<SyncResult, String> {
+    let token = get_token(&app)?.ok_or_else(|| {
+        "Desktop is not connected. Connect before syncing.".to_string()
+    })?;
     let base_url = normalize_base_url(base_url);
     let endpoint = format!("{base_url}/api/desktop/upload/daily-stats");
 
@@ -261,8 +258,13 @@ async fn sync_now(base_url: Option<String>) -> Result<SyncResult, String> {
 }
 
 #[tauri::command]
-async fn get_source_visibility(base_url: Option<String>) -> Result<bool, String> {
-    let token = get_token()?.ok_or_else(|| "Desktop is not connected. Connect before syncing.".to_string())?;
+async fn get_source_visibility(
+    app: tauri::AppHandle,
+    base_url: Option<String>,
+) -> Result<bool, String> {
+    let token = get_token(&app)?.ok_or_else(|| {
+        "Desktop is not connected. Connect before syncing.".to_string()
+    })?;
     let base_url = normalize_base_url(base_url);
     let endpoint = format!("{base_url}/api/desktop/upload/source-visibility");
 
@@ -293,10 +295,13 @@ async fn get_source_visibility(base_url: Option<String>) -> Result<bool, String>
 
 #[tauri::command]
 async fn set_source_visibility(
+    app: tauri::AppHandle,
     base_url: Option<String>,
     show_source_stats_publicly: bool,
 ) -> Result<bool, String> {
-    let token = get_token()?.ok_or_else(|| "Desktop is not connected. Connect before syncing.".to_string())?;
+    let token = get_token(&app)?.ok_or_else(|| {
+        "Desktop is not connected. Connect before syncing.".to_string()
+    })?;
     let base_url = normalize_base_url(base_url);
     let endpoint = format!("{base_url}/api/desktop/upload/source-visibility");
 
@@ -328,8 +333,95 @@ async fn set_source_visibility(
     Ok(payload.show_source_stats_publicly)
 }
 
+#[tauri::command]
+async fn get_user_stats(
+    app: tauri::AppHandle,
+    base_url: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let token = get_token(&app)?.ok_or_else(|| {
+        "Desktop is not connected. Connect before syncing.".to_string()
+    })?;
+    let base_url = normalize_base_url(base_url);
+    let endpoint = format!("{base_url}/api/desktop/user-stats");
+
+    let client = Client::new();
+    let response = client
+        .get(endpoint)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|error| format!("Failed to fetch user stats: {error}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unable to read error response".to_string());
+        return Err(format!("User stats fetch failed ({status}): {body}"));
+    }
+
+    response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|error| format!("Invalid user stats response: {error}"))
+}
+
+#[tauri::command]
+async fn get_local_cursor_stats() -> Result<Vec<DailyMetricRow>, String> {
+    let adapter = get_adapter("cursor")?;
+    adapter.read_daily_rows()
+}
+
+#[tauri::command]
+async fn open_url(url: String) -> Result<(), String> {
+    open::that(url).map_err(|error| format!("Failed to open URL: {error}"))
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .setup(|app| {
+            let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app: &tauri::AppHandle, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray: &tauri::tray::TrayIcon, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_default_base_url,
             get_saved_desktop_token,
@@ -339,7 +431,11 @@ fn main() {
             sync_now,
             get_source_visibility,
             set_source_visibility,
+            open_url,
+            get_user_stats,
+            get_local_cursor_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
